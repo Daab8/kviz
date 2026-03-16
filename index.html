@@ -142,7 +142,7 @@
     }
 
     .hidden {
-      display: none;
+      display: none !important;
     }
 
     .field {
@@ -165,6 +165,25 @@
     .manage-tools {
       grid-template-columns: 1fr 1fr auto;
       align-items: end;
+      margin-bottom: 0.75rem;
+    }
+
+    .manage-tools .field {
+      margin-bottom: 0;
+    }
+
+    .manage-tools #openCreateFromManage {
+      width: 100%;
+      order: 3;
+      align-self: end;
+    }
+
+    .manage-tools > .field:nth-of-type(1) {
+      order: 1;
+    }
+
+    .manage-tools > .field:nth-of-type(2) {
+      order: 2;
     }
 
     label {
@@ -259,6 +278,10 @@
       margin-top: 0.9rem;
     }
 
+    #quizBuilderView .actions {
+      justify-content: flex-end;
+    }
+
     button,
     .pseudo-btn {
       border: none;
@@ -273,6 +296,7 @@
     .btn-primary {
       background: linear-gradient(120deg, var(--accent), var(--accent-2));
       color: #fff;
+      border: 1px solid transparent;
     }
 
     .btn-secondary {
@@ -322,6 +346,21 @@
       gap: 0.9rem;
     }
 
+    .quiz-top-actions {
+      margin-top: 0;
+    }
+
+    .quiz-top-bar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.75rem;
+      align-items: end;
+    }
+
+    .quiz-top-bar .field {
+      margin-bottom: 0;
+    }
+
     .picker-box {
       border: 1px solid var(--line);
       border-radius: 12px;
@@ -332,6 +371,19 @@
     .picker-title {
       margin: 0 0 0.5rem;
       font-size: 0.95rem;
+    }
+
+    .picker-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.55rem;
+      flex-wrap: wrap;
+    }
+
+    .picker-head .picker-title {
+      margin: 0;
     }
 
     .picker-actions {
@@ -831,6 +883,18 @@
         grid-template-columns: 1fr;
       }
 
+      .manage-tools #openCreateFromManage {
+        order: 1;
+      }
+
+      .manage-tools > .field:nth-of-type(1) {
+        order: 2;
+      }
+
+      .manage-tools > .field:nth-of-type(2) {
+        order: 3;
+      }
+
       .mode-row {
         flex-wrap: wrap;
       }
@@ -880,6 +944,18 @@
 
       .quiz-card-head {
         flex-direction: column;
+      }
+
+      .quiz-top-bar {
+        grid-template-columns: 1fr;
+      }
+
+      .quiz-top-bar .field {
+        order: 2;
+      }
+
+      .quiz-top-bar button {
+        order: 1;
       }
     }
 
@@ -1031,6 +1107,14 @@
         grid-template-columns: 1fr 1fr;
       }
 
+      .picker-head {
+        align-items: stretch;
+      }
+
+      .picker-head button {
+        width: 100%;
+      }
+
       .picker-actions button {
         width: 100%;
       }
@@ -1047,6 +1131,18 @@
       }
 
       #tab-quizzes .actions button {
+        width: 100%;
+      }
+
+      .quiz-top-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .quiz-top-bar {
+        gap: 0.6rem;
+      }
+
+      .quiz-top-bar button {
         width: 100%;
       }
 
@@ -1072,8 +1168,8 @@
       </div>
       <div class="tabs-row">
         <div class="tabs">
-          <button class="tab-btn active" data-tab="tab-manage">Správa otázok</button>
-          <button class="tab-btn" data-tab="tab-quizzes">Kvíz</button>
+          <button class="tab-btn active" data-tab="tab-manage">Otázky</button>
+          <button class="tab-btn" data-tab="tab-quizzes">Kvízy</button>
         </div>
         <div class="header-actions">
           <label class="pseudo-btn btn-secondary" for="headerImportInput">Načítať</label>
@@ -1147,6 +1243,8 @@
 
     <section id="tab-manage" class="panel">
       <div class="inline-grid manage-tools">
+        <button type="button" id="openCreateFromManage" class="btn-primary">Nová otázka</button>
+
         <div class="field">
           <label for="filterCategory">Filtrovať podľa kategórie</label>
           <select id="filterCategory"></select>
@@ -1155,11 +1253,6 @@
         <div class="field">
           <label for="searchBox">Hľadať v otázkach a odpovediach</label>
           <input id="searchBox" type="text" placeholder="Zadajte text na vyhľadanie...">
-        </div>
-
-        <div class="field">
-          <label>&nbsp;</label>
-          <button type="button" id="openCreateFromManage" class="btn-primary">Nová otázka</button>
         </div>
       </div>
 
@@ -1178,7 +1271,19 @@
     </section>
 
     <section id="tab-quizzes" class="panel hidden">
-      <div class="quiz-grid">
+      <div id="quizManageView" class="quiz-grid">
+        <div class="quiz-top-bar quiz-top-actions">
+          <div class="field">
+            <label for="quizSearchBox">Hľadať podľa názvu kvízu</label>
+            <input id="quizSearchBox" type="text" placeholder="Zadajte názov kvízu...">
+          </div>
+          <button type="button" id="openQuizBuilderBtn" class="btn-primary">Nový kvíz</button>
+        </div>
+
+        <div id="quizzesContainer"></div>
+      </div>
+
+      <div id="quizBuilderView" class="quiz-grid hidden">
         <div class="inline-grid equal">
           <div class="field">
             <label for="quizName">Názov kvízu</label>
@@ -1186,13 +1291,13 @@
           </div>
           <div class="field">
             <label for="quizDescription">Popis (voliteľné)</label>
-            <input id="quizDescription" type="text" maxlength="140" placeholder="Krátky popis kvízu...">
+            <input id="quizDescription" type="text" maxlength="200" placeholder="Krátky popis kvízu...">
           </div>
         </div>
 
         <div class="picker-box">
-          <h3 class="picker-title">Výber celých kategórií</h3>
-          <div class="picker-actions">
+          <div class="picker-head">
+            <h3 class="picker-title">Výber celých kategórií</h3>
             <button type="button" id="toggleAllQuizCategories" class="btn-secondary">Vybrať všetky</button>
           </div>
           <div id="quizCategoriesPicker" class="picker-list"></div>
@@ -1214,13 +1319,8 @@
         </div>
 
         <div class="actions">
+          <button type="button" id="closeQuizBuilderBtn" class="btn-secondary">Späť na zoznam kvízov</button>
           <button type="button" id="saveQuizBtn" class="btn-primary">Uložiť kvíz</button>
-          <button type="button" id="resetQuizFormBtn" class="btn-secondary">Vyčistiť formulár</button>
-        </div>
-
-        <div class="categories-box">
-          <h3>Správa kvízov</h3>
-          <div id="quizzesContainer"></div>
         </div>
       </div>
     </section>
@@ -1302,11 +1402,15 @@
       cancelCategoryDelete: document.getElementById("cancelCategoryDelete"),
       quizName: document.getElementById("quizName"),
       quizDescription: document.getElementById("quizDescription"),
+      quizManageView: document.getElementById("quizManageView"),
+      quizBuilderView: document.getElementById("quizBuilderView"),
+      openQuizBuilderBtn: document.getElementById("openQuizBuilderBtn"),
+      closeQuizBuilderBtn: document.getElementById("closeQuizBuilderBtn"),
+      quizSearchBox: document.getElementById("quizSearchBox"),
       quizCategoriesPicker: document.getElementById("quizCategoriesPicker"),
       quizQuestionsPicker: document.getElementById("quizQuestionsPicker"),
       quizSelectionSummary: document.getElementById("quizSelectionSummary"),
       saveQuizBtn: document.getElementById("saveQuizBtn"),
-      resetQuizFormBtn: document.getElementById("resetQuizFormBtn"),
       toggleAllQuizCategories: document.getElementById("toggleAllQuizCategories"),
       toggleAllQuizQuestions: document.getElementById("toggleAllQuizQuestions"),
       quizQuestionSearch: document.getElementById("quizQuestionSearch"),
@@ -1437,7 +1541,7 @@
           return {
             id: quiz.id,
             name: String(quiz.name || "Bez názvu kvízu").trim() || "Bez názvu kvízu",
-            description: String(quiz.description || "").trim(),
+            description: String(quiz.description || "").trim().slice(0, 200),
             selectedCategoryIds,
             selectedQuestionIds,
             createdAt: quiz.createdAt || new Date().toISOString(),
@@ -1479,6 +1583,16 @@
         }
       }
       return [...questionSet];
+    }
+
+    function showQuizManageView() {
+      el.quizBuilderView.classList.add("hidden");
+      el.quizManageView.classList.remove("hidden");
+    }
+
+    function showQuizBuilderView() {
+      el.quizManageView.classList.add("hidden");
+      el.quizBuilderView.classList.remove("hidden");
     }
 
     function getQuizSelectionsFromForm() {
@@ -1608,6 +1722,7 @@
       el.saveQuizBtn.textContent = "Uložiť zmeny kvízu";
       renderQuizPickers(false);
       switchTab("tab-quizzes");
+      showQuizBuilderView();
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
@@ -1625,18 +1740,37 @@
         return;
       }
 
-      const sorted = [...state.quizzes].sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+      const query = String(el.quizSearchBox.value || "").trim().toLowerCase();
+      const filtered = state.quizzes.filter((quiz) => {
+        if (!query) {
+          return true;
+        }
+        return quiz.name.toLowerCase().includes(query);
+      });
+
+      if (!filtered.length) {
+        el.quizzesContainer.innerHTML = "<p class='muted'>Nenašli sa žiadne kvízy podľa názvu.</p>";
+        return;
+      }
+
+      const sorted = [...filtered].sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
       el.quizzesContainer.innerHTML = sorted.map((quiz) => {
-        const total = getQuizQuestionPool(quiz.selectedCategoryIds, quiz.selectedQuestionIds).length;
-        const categoriesLabel = quiz.selectedCategoryIds.length;
-        const manualLabel = quiz.selectedQuestionIds.length;
+        const categoryNames = quiz.selectedCategoryIds
+          .map((categoryId) => getCategoryById(categoryId))
+          .filter(Boolean)
+          .map((category) => category.name);
+        const categoriesLabel = categoryNames.length
+          ? categoryNames.join(", ")
+          : "Bez vybraných kategórií";
+        const totalQuestions = getQuizQuestionPool(quiz.selectedCategoryIds, quiz.selectedQuestionIds).length;
         return `
           <article class="quiz-card">
             <div class="quiz-card-head">
               <div>
                 <h4 class="quiz-card-title">${escapeHtml(quiz.name)}</h4>
                 ${quiz.description ? `<div class="muted">${escapeHtml(quiz.description)}</div>` : ""}
-                <div class="muted">Kategórie: ${categoriesLabel} | Individuálne otázky: ${manualLabel} | Celkom v kvíze: ${total}</div>
+                <div class="muted">Kategórie: ${escapeHtml(categoriesLabel)}</div>
+                <div class="muted">Počet otázok v kvíze: ${totalQuestions}</div>
                 <div class="muted">Posledná zmena: ${formatDate(quiz.lastModified)}</div>
               </div>
               <div class="split">
@@ -1672,7 +1806,7 @@
           return {
             ...quiz,
             name,
-            description: el.quizDescription.value.trim(),
+            description: el.quizDescription.value.trim().slice(0, 200),
             selectedCategoryIds,
             selectedQuestionIds,
             lastModified: nowIso
@@ -1682,7 +1816,7 @@
         state.quizzes.unshift({
           id: makeUuid(),
           name,
-          description: el.quizDescription.value.trim(),
+          description: el.quizDescription.value.trim().slice(0, 200),
           selectedCategoryIds,
           selectedQuestionIds,
           createdAt: nowIso,
@@ -1693,6 +1827,7 @@
       markUnsavedChanges();
       await persistState();
       resetQuizForm();
+      showQuizManageView();
     }
 
     function deleteQuiz(quizId) {
@@ -1706,6 +1841,7 @@
       state.quizzes = state.quizzes.filter((item) => item.id !== quizId);
       if (state.editingQuizId === quizId) {
         resetQuizForm();
+        showQuizManageView();
       }
       markUnsavedChanges();
       persistState();
@@ -2396,6 +2532,11 @@
       el.tabCreate.classList.toggle("hidden", tabId !== "tab-create");
       el.tabManage.classList.toggle("hidden", tabId !== "tab-manage");
       el.tabQuizzes.classList.toggle("hidden", tabId !== "tab-quizzes");
+
+      if (tabId === "tab-quizzes" && !state.editingQuizId) {
+        showQuizManageView();
+      }
+
       if (tabId === "tab-create") {
         el.tabs.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === "tab-manage"));
       } else {
@@ -2718,10 +2859,21 @@
       el.quizCategoriesPicker.addEventListener("change", updateQuizSelectionUiState);
       el.quizQuestionsPicker.addEventListener("change", updateQuizSelectionUiState);
       el.saveQuizBtn.addEventListener("click", saveQuizFromForm);
-      el.resetQuizFormBtn.addEventListener("click", resetQuizForm);
+      el.openQuizBuilderBtn.addEventListener("click", () => {
+        resetQuizForm();
+        showQuizBuilderView();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+      el.closeQuizBuilderBtn.addEventListener("click", () => {
+        state.editingQuizId = null;
+        resetQuizForm();
+        switchTab("tab-quizzes");
+        showQuizManageView();
+      });
 
       el.quizQuestionSearch.addEventListener("input", renderQuizPickers);
       el.quizQuestionCategoryFilter.addEventListener("change", renderQuizPickers);
+      el.quizSearchBox.addEventListener("input", renderQuizzesManager);
 
       el.toggleAllQuizCategories.addEventListener("click", () => {
         const boxes = [...el.quizCategoriesPicker.querySelectorAll("input[type='checkbox'][data-kind='category']")];
@@ -2828,6 +2980,7 @@
       renderAnswerInputs();
       updateCategorySelects();
       wireEvents();
+      showQuizManageView();
       loadInitialData();
       el.categorySelect.value = MIX_CATEGORY_ID;
       updateSaveButtonState();
