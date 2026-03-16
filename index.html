@@ -162,6 +162,11 @@
       grid-template-columns: 1fr 1fr;
     }
 
+    .manage-tools {
+      grid-template-columns: 1fr 1fr auto;
+      align-items: end;
+    }
+
     label {
       display: block;
       font-size: 0.9rem;
@@ -309,6 +314,90 @@
       padding: 0.75rem;
       color: #1e3a8a;
       font-size: 0.9rem;
+    }
+
+    .quiz-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.9rem;
+    }
+
+    .picker-box {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.65rem;
+      background: #f8fafc;
+    }
+
+    .picker-title {
+      margin: 0 0 0.5rem;
+      font-size: 0.95rem;
+    }
+
+    .picker-actions {
+      display: flex;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.55rem;
+    }
+
+    .picker-actions input[type="text"],
+    .picker-actions select {
+      min-width: 180px;
+      flex: 1;
+    }
+
+    .picker-list {
+      display: grid;
+      gap: 0.4rem;
+      max-height: 220px;
+      overflow: auto;
+      padding-right: 0.15rem;
+    }
+
+    .picker-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding: 0.35rem 0.4rem;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+    }
+
+    .picker-item span {
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    .picker-item input {
+      margin-top: 0.2rem;
+    }
+
+    .quiz-summary {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .quiz-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.7rem;
+      background: #fff;
+      margin-bottom: 0.55rem;
+    }
+
+    .quiz-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+    }
+
+    .quiz-card-title {
+      margin: 0;
+      font-size: 1rem;
     }
 
     .meta {
@@ -697,6 +786,9 @@
     :root[data-theme="dark"] .ordering-field,
     :root[data-theme="dark"] .status-box,
     :root[data-theme="dark"] .question-card,
+    :root[data-theme="dark"] .picker-box,
+    :root[data-theme="dark"] .picker-item,
+    :root[data-theme="dark"] .quiz-card,
     :root[data-theme="dark"] .image-modal,
     :root[data-theme="dark"] .modal {
       background: #0f172a;
@@ -732,6 +824,10 @@
       }
 
       .inline-grid.equal {
+        grid-template-columns: 1fr;
+      }
+
+      .manage-tools {
         grid-template-columns: 1fr;
       }
 
@@ -781,6 +877,10 @@
       .answer-row {
         grid-template-columns: auto 1fr;
       }
+
+      .quiz-card-head {
+        flex-direction: column;
+      }
     }
 
     @media (max-width: 640px) {
@@ -813,6 +913,14 @@
         width: 100%;
         margin-top: 0;
         display: grid;
+      }
+
+      .tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.4rem;
+      }
+
+      .header-actions {
         grid-template-columns: 1fr 1fr;
       }
 
@@ -821,6 +929,11 @@
       .header-actions button {
         width: 100%;
         text-align: center;
+      }
+
+      .tab-btn {
+        padding: 0.5rem 0.55rem;
+        font-size: 0.88rem;
       }
 
       main {
@@ -908,6 +1021,42 @@
         grid-area: toggle;
         justify-self: end;
       }
+
+      .picker-list {
+        max-height: 180px;
+      }
+
+      .picker-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .picker-actions button {
+        width: 100%;
+      }
+
+      .picker-actions input[type="text"],
+      .picker-actions select {
+        grid-column: 1 / -1;
+        min-width: 0;
+      }
+
+      #tab-quizzes .actions {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      #tab-quizzes .actions button {
+        width: 100%;
+      }
+
+      .quiz-card .split {
+        width: 100%;
+      }
+
+      .quiz-card .split button {
+        flex: 1;
+      }
     }
   </style>
 </head>
@@ -923,8 +1072,8 @@
       </div>
       <div class="tabs-row">
         <div class="tabs">
-          <button class="tab-btn active" data-tab="tab-create">Vytvorenie otázky</button>
-          <button class="tab-btn" data-tab="tab-manage">Správa otázok</button>
+          <button class="tab-btn active" data-tab="tab-manage">Správa otázok</button>
+          <button class="tab-btn" data-tab="tab-quizzes">Kvíz</button>
         </div>
         <div class="header-actions">
           <label class="pseudo-btn btn-secondary" for="headerImportInput">Načítať</label>
@@ -936,7 +1085,7 @@
   </header>
 
   <main>
-    <section id="tab-create" class="panel">
+    <section id="tab-create" class="panel hidden">
       <form id="questionForm">
         <div class="field">
           <label for="questionText">Otázka</label>
@@ -996,8 +1145,8 @@
       </form>
     </section>
 
-    <section id="tab-manage" class="panel hidden">
-      <div class="inline-grid equal">
+    <section id="tab-manage" class="panel">
+      <div class="inline-grid manage-tools">
         <div class="field">
           <label for="filterCategory">Filtrovať podľa kategórie</label>
           <select id="filterCategory"></select>
@@ -1006,6 +1155,11 @@
         <div class="field">
           <label for="searchBox">Hľadať v otázkach a odpovediach</label>
           <input id="searchBox" type="text" placeholder="Zadajte text na vyhľadanie...">
+        </div>
+
+        <div class="field">
+          <label>&nbsp;</label>
+          <button type="button" id="openCreateFromManage" class="btn-primary">Nová otázka</button>
         </div>
       </div>
 
@@ -1020,6 +1174,54 @@
         <strong>Aktuálny súhrn</strong>
         <p id="quickStats">Otázky: 0 | Kategórie: 1</p>
         <p class="muted" id="jsonVersion">JSON verzia: 1.0.0</p>
+      </div>
+    </section>
+
+    <section id="tab-quizzes" class="panel hidden">
+      <div class="quiz-grid">
+        <div class="inline-grid equal">
+          <div class="field">
+            <label for="quizName">Názov kvízu</label>
+            <input id="quizName" type="text" maxlength="80" placeholder="Napr. Opakovanie 8.A - Geografia">
+          </div>
+          <div class="field">
+            <label for="quizDescription">Popis (voliteľné)</label>
+            <input id="quizDescription" type="text" maxlength="140" placeholder="Krátky popis kvízu...">
+          </div>
+        </div>
+
+        <div class="picker-box">
+          <h3 class="picker-title">Výber celých kategórií</h3>
+          <div class="picker-actions">
+            <button type="button" id="toggleAllQuizCategories" class="btn-secondary">Vybrať všetky</button>
+          </div>
+          <div id="quizCategoriesPicker" class="picker-list"></div>
+        </div>
+
+        <div class="picker-box">
+          <h3 class="picker-title">Individuálny výber otázok</h3>
+          <div class="picker-actions">
+            <button type="button" id="toggleAllQuizQuestions" class="btn-secondary">Vybrať všetky</button>
+            <input id="quizQuestionSearch" type="text" placeholder="Hľadať otázky...">
+            <select id="quizQuestionCategoryFilter"></select>
+          </div>
+          <div id="quizQuestionsPicker" class="picker-list"></div>
+        </div>
+
+        <div class="status-box">
+          <strong>Súhrn výberu</strong>
+          <p id="quizSelectionSummary" class="quiz-summary">Vybrané kategórie: 0 | Individuálne otázky: 0 | Celkom v kvíze: 0</p>
+        </div>
+
+        <div class="actions">
+          <button type="button" id="saveQuizBtn" class="btn-primary">Uložiť kvíz</button>
+          <button type="button" id="resetQuizFormBtn" class="btn-secondary">Vyčistiť formulár</button>
+        </div>
+
+        <div class="categories-box">
+          <h3>Správa kvízov</h3>
+          <div id="quizzesContainer"></div>
+        </div>
       </div>
     </section>
   </main>
@@ -1056,8 +1258,10 @@
       updatedAt: new Date().toISOString(),
       categories: [MIX_CATEGORY],
       questions: [],
+      quizzes: [],
       hasUnsavedChanges: false,
       editingQuestionId: null,
+      editingQuizId: null,
       pendingCategoryDeleteId: null,
       expandedQuestionIds: new Set()
     };
@@ -1066,6 +1270,7 @@
       tabs: document.querySelectorAll(".tab-btn"),
       tabCreate: document.getElementById("tab-create"),
       tabManage: document.getElementById("tab-manage"),
+      tabQuizzes: document.getElementById("tab-quizzes"),
       answerGrid: document.getElementById("answerGrid"),
       orderingField: document.getElementById("orderingField"),
       orderingGrid: document.getElementById("orderingGrid"),
@@ -1087,6 +1292,7 @@
       jsonVersion: document.getElementById("jsonVersion"),
       filterCategory: document.getElementById("filterCategory"),
       searchBox: document.getElementById("searchBox"),
+      openCreateFromManage: document.getElementById("openCreateFromManage"),
       questionsContainer: document.getElementById("questionsContainer"),
       categoriesContainer: document.getElementById("categoriesContainer"),
       categoryModalBackdrop: document.getElementById("categoryModalBackdrop"),
@@ -1094,6 +1300,18 @@
       deleteCategoryWithQuestions: document.getElementById("deleteCategoryWithQuestions"),
       moveCategoryToMix: document.getElementById("moveCategoryToMix"),
       cancelCategoryDelete: document.getElementById("cancelCategoryDelete"),
+      quizName: document.getElementById("quizName"),
+      quizDescription: document.getElementById("quizDescription"),
+      quizCategoriesPicker: document.getElementById("quizCategoriesPicker"),
+      quizQuestionsPicker: document.getElementById("quizQuestionsPicker"),
+      quizSelectionSummary: document.getElementById("quizSelectionSummary"),
+      saveQuizBtn: document.getElementById("saveQuizBtn"),
+      resetQuizFormBtn: document.getElementById("resetQuizFormBtn"),
+      toggleAllQuizCategories: document.getElementById("toggleAllQuizCategories"),
+      toggleAllQuizQuestions: document.getElementById("toggleAllQuizQuestions"),
+      quizQuestionSearch: document.getElementById("quizQuestionSearch"),
+      quizQuestionCategoryFilter: document.getElementById("quizQuestionCategoryFilter"),
+      quizzesContainer: document.getElementById("quizzesContainer"),
       imageModalBackdrop: document.getElementById("imageModalBackdrop"),
       imageModalImage: document.getElementById("imageModalImage"),
       imageModalClose: document.getElementById("imageModalClose")
@@ -1174,6 +1392,9 @@
       if (!Array.isArray(data.questions)) {
         data.questions = [];
       }
+      if (!Array.isArray(data.quizzes)) {
+        data.quizzes = [];
+      }
 
       if (!data.categories.find((c) => c && c.id === MIX_CATEGORY_ID)) {
         data.categories.unshift({ ...MIX_CATEGORY });
@@ -1203,6 +1424,26 @@
           delete q.shuffleAnswers;
         }
       }
+
+      data.quizzes = data.quizzes
+        .filter((quiz) => quiz && quiz.id)
+        .map((quiz) => {
+          const selectedCategoryIds = Array.isArray(quiz.selectedCategoryIds)
+            ? quiz.selectedCategoryIds.filter((id) => data.categories.some((c) => c.id === id))
+            : [];
+          const selectedQuestionIds = Array.isArray(quiz.selectedQuestionIds)
+            ? quiz.selectedQuestionIds.filter((id) => data.questions.some((q) => q.id === id))
+            : [];
+          return {
+            id: quiz.id,
+            name: String(quiz.name || "Bez názvu kvízu").trim() || "Bez názvu kvízu",
+            description: String(quiz.description || "").trim(),
+            selectedCategoryIds,
+            selectedQuestionIds,
+            createdAt: quiz.createdAt || new Date().toISOString(),
+            lastModified: quiz.lastModified || new Date().toISOString()
+          };
+        });
     }
 
     function getDataForStorage() {
@@ -1210,6 +1451,7 @@
         version: state.version,
         updatedAt: state.updatedAt,
         categories: state.categories,
+        quizzes: state.quizzes,
         questions: state.questions.map((q) => {
           const { shuffleAnswers, ...rest } = q;
           return rest;
@@ -1223,7 +1465,250 @@
       state.updatedAt = data.updatedAt;
       state.categories = data.categories;
       state.questions = data.questions;
+      state.quizzes = data.quizzes;
       state.editingQuestionId = null;
+      state.editingQuizId = null;
+    }
+
+    function getQuizQuestionPool(selectedCategoryIds, selectedQuestionIds) {
+      const categorySet = new Set(selectedCategoryIds || []);
+      const questionSet = new Set((selectedQuestionIds || []).filter((id) => state.questions.some((q) => q.id === id)));
+      for (const q of state.questions) {
+        if (categorySet.has(q.categoryId)) {
+          questionSet.add(q.id);
+        }
+      }
+      return [...questionSet];
+    }
+
+    function getQuizSelectionsFromForm() {
+      const selectedCategoryIds = [...el.quizCategoriesPicker.querySelectorAll("input[type='checkbox'][data-kind='category']:checked")]
+        .map((c) => c.value);
+      const selectedQuestionIds = [...el.quizQuestionsPicker.querySelectorAll("input[type='checkbox'][data-kind='question']:checked")]
+        .map((c) => c.value);
+      return { selectedCategoryIds, selectedQuestionIds };
+    }
+
+    function updateQuizSelectionSummary() {
+      const { selectedCategoryIds, selectedQuestionIds } = getQuizSelectionsFromForm();
+      const total = getQuizQuestionPool(selectedCategoryIds, selectedQuestionIds).length;
+      el.quizSelectionSummary.textContent = `Vybrané kategórie: ${selectedCategoryIds.length} | Individuálne otázky: ${selectedQuestionIds.length} | Celkom v kvíze: ${total}`;
+    }
+
+    function updateQuizCategoryToggleState() {
+      const boxes = [...el.quizCategoriesPicker.querySelectorAll("input[type='checkbox'][data-kind='category']")];
+      const allSelected = boxes.length > 0 && boxes.every((box) => box.checked);
+      el.toggleAllQuizCategories.textContent = allSelected ? "Nevybrať nič" : "Vybrať všetky";
+      el.toggleAllQuizCategories.disabled = boxes.length < 1;
+    }
+
+    function updateQuizQuestionToggleState() {
+      const visibleBoxes = [...el.quizQuestionsPicker.querySelectorAll("input[type='checkbox'][data-kind='question'][data-visible='1']")];
+      const allVisibleSelected = visibleBoxes.length > 0 && visibleBoxes.every((box) => box.checked);
+      el.toggleAllQuizQuestions.textContent = allVisibleSelected ? "Nevybrať nič" : "Vybrať všetky";
+      el.toggleAllQuizQuestions.disabled = visibleBoxes.length < 1;
+    }
+
+    function updateQuizSelectionUiState() {
+      updateQuizSelectionSummary();
+      updateQuizCategoryToggleState();
+      updateQuizQuestionToggleState();
+    }
+
+    function renderQuizPickers(preserveCurrentSelection = true) {
+      if (!el.quizCategoriesPicker || !el.quizQuestionsPicker) {
+        return;
+      }
+
+      const previousCategoryBoxes = el.quizCategoriesPicker.querySelectorAll("input[type='checkbox'][data-kind='category']").length;
+      const previousQuestionBoxes = el.quizQuestionsPicker.querySelectorAll("input[type='checkbox'][data-kind='question']").length;
+      const currentCategorySelection = new Set(
+        [...el.quizCategoriesPicker.querySelectorAll("input[type='checkbox'][data-kind='category']:checked")].map((item) => item.value)
+      );
+      const currentQuestionSelection = new Set(
+        [...el.quizQuestionsPicker.querySelectorAll("input[type='checkbox'][data-kind='question']:checked")].map((item) => item.value)
+      );
+
+      const selected = state.editingQuizId
+        ? state.quizzes.find((q) => q.id === state.editingQuizId)
+        : null;
+
+      const selectedCategorySet = preserveCurrentSelection && previousCategoryBoxes > 0
+        ? currentCategorySelection
+        : new Set(selected ? selected.selectedCategoryIds : []);
+      const selectedQuestionSet = preserveCurrentSelection && previousQuestionBoxes > 0
+        ? currentQuestionSelection
+        : new Set(selected ? selected.selectedQuestionIds : []);
+
+      const searchText = String(el.quizQuestionSearch.value || "").trim().toLowerCase();
+      const previousQuestionCategoryFilter = el.quizQuestionCategoryFilter.value || "all";
+      const categoryFilterOptions = ["<option value=\"all\">Všetky kategórie</option>"]
+        .concat(state.categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`))
+        .join("");
+      el.quizQuestionCategoryFilter.innerHTML = categoryFilterOptions;
+      if ([...el.quizQuestionCategoryFilter.options].some((option) => option.value === previousQuestionCategoryFilter)) {
+        el.quizQuestionCategoryFilter.value = previousQuestionCategoryFilter;
+      }
+      const activeCategoryFilter = el.quizQuestionCategoryFilter.value || "all";
+
+      if (!state.categories.length) {
+        el.quizCategoriesPicker.innerHTML = "<p class='muted'>Nie sú dostupné žiadne kategórie.</p>";
+      } else {
+        el.quizCategoriesPicker.innerHTML = state.categories.map((c) => {
+          const checked = selectedCategorySet.has(c.id) ? "checked" : "";
+          return `
+            <label class="picker-item">
+              <input type="checkbox" data-kind="category" value="${c.id}" ${checked}>
+              <span>${escapeHtml(c.name)}</span>
+            </label>
+          `;
+        }).join("");
+      }
+
+      if (!state.questions.length) {
+        el.quizQuestionsPicker.innerHTML = "<p class='muted'>Nie sú dostupné žiadne otázky.</p>";
+      } else {
+        el.quizQuestionsPicker.innerHTML = state.questions.map((q) => {
+          const category = getCategoryById(q.categoryId);
+          const checked = selectedQuestionSet.has(q.id) ? "checked" : "";
+          const categoryMatches = activeCategoryFilter === "all" || q.categoryId === activeCategoryFilter;
+          const textMatches = !searchText || q.text.toLowerCase().includes(searchText);
+          const isVisible = categoryMatches && textMatches;
+          return `
+            <label class="picker-item" style="${isVisible ? "" : "display:none"}">
+              <input type="checkbox" data-kind="question" data-visible="${isVisible ? "1" : "0"}" value="${q.id}" ${checked}>
+              <span>
+                <strong>${escapeHtml(q.text)}</strong>
+                <span class="muted">(${escapeHtml(category ? category.name : MIX_CATEGORY.name)})</span>
+              </span>
+            </label>
+          `;
+        }).join("");
+      }
+
+      updateQuizSelectionUiState();
+    }
+
+    function resetQuizForm() {
+      state.editingQuizId = null;
+      el.quizName.value = "";
+      el.quizDescription.value = "";
+      el.saveQuizBtn.textContent = "Uložiť kvíz";
+      renderQuizPickers(false);
+    }
+
+    function loadQuizToForm(quizId) {
+      const quiz = state.quizzes.find((item) => item.id === quizId);
+      if (!quiz) {
+        return;
+      }
+      state.editingQuizId = quiz.id;
+      el.quizName.value = quiz.name;
+      el.quizDescription.value = quiz.description || "";
+      el.saveQuizBtn.textContent = "Uložiť zmeny kvízu";
+      renderQuizPickers(false);
+      switchTab("tab-quizzes");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function getQuizSignature(quiz) {
+      return [
+        normalizeText(quiz.name),
+        [...(quiz.selectedCategoryIds || [])].sort().join("|"),
+        [...(quiz.selectedQuestionIds || [])].sort().join("|")
+      ].join("||");
+    }
+
+    function renderQuizzesManager() {
+      if (!state.quizzes.length) {
+        el.quizzesContainer.innerHTML = "<p class='muted'>Zatiaľ nemáte vytvorený žiadny kvíz.</p>";
+        return;
+      }
+
+      const sorted = [...state.quizzes].sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+      el.quizzesContainer.innerHTML = sorted.map((quiz) => {
+        const total = getQuizQuestionPool(quiz.selectedCategoryIds, quiz.selectedQuestionIds).length;
+        const categoriesLabel = quiz.selectedCategoryIds.length;
+        const manualLabel = quiz.selectedQuestionIds.length;
+        return `
+          <article class="quiz-card">
+            <div class="quiz-card-head">
+              <div>
+                <h4 class="quiz-card-title">${escapeHtml(quiz.name)}</h4>
+                ${quiz.description ? `<div class="muted">${escapeHtml(quiz.description)}</div>` : ""}
+                <div class="muted">Kategórie: ${categoriesLabel} | Individuálne otázky: ${manualLabel} | Celkom v kvíze: ${total}</div>
+                <div class="muted">Posledná zmena: ${formatDate(quiz.lastModified)}</div>
+              </div>
+              <div class="split">
+                <button type="button" class="btn-secondary" data-action="edit-quiz" data-id="${quiz.id}">Upraviť</button>
+                <button type="button" class="btn-danger" data-action="delete-quiz" data-id="${quiz.id}">Zmazať</button>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    async function saveQuizFromForm() {
+      const name = el.quizName.value.trim();
+      if (!name) {
+        alert("Zadajte názov kvízu.");
+        return;
+      }
+
+      const { selectedCategoryIds, selectedQuestionIds } = getQuizSelectionsFromForm();
+      const total = getQuizQuestionPool(selectedCategoryIds, selectedQuestionIds).length;
+      if (total < 1) {
+        alert("Vyberte aspoň 1 otázku alebo 1 kategóriu.");
+        return;
+      }
+
+      const nowIso = new Date().toISOString();
+      if (state.editingQuizId) {
+        state.quizzes = state.quizzes.map((quiz) => {
+          if (quiz.id !== state.editingQuizId) {
+            return quiz;
+          }
+          return {
+            ...quiz,
+            name,
+            description: el.quizDescription.value.trim(),
+            selectedCategoryIds,
+            selectedQuestionIds,
+            lastModified: nowIso
+          };
+        });
+      } else {
+        state.quizzes.unshift({
+          id: makeUuid(),
+          name,
+          description: el.quizDescription.value.trim(),
+          selectedCategoryIds,
+          selectedQuestionIds,
+          createdAt: nowIso,
+          lastModified: nowIso
+        });
+      }
+
+      markUnsavedChanges();
+      await persistState();
+      resetQuizForm();
+    }
+
+    function deleteQuiz(quizId) {
+      const quiz = state.quizzes.find((item) => item.id === quizId);
+      if (!quiz) {
+        return;
+      }
+      if (!confirm(`Naozaj chcete zmazať kvíz "${quiz.name}"?`)) {
+        return;
+      }
+      state.quizzes = state.quizzes.filter((item) => item.id !== quizId);
+      if (state.editingQuizId === quizId) {
+        resetQuizForm();
+      }
+      markUnsavedChanges();
+      persistState();
     }
 
     function normalizeText(value) {
@@ -1299,6 +1784,7 @@
 
       const existingCategories = [...state.categories];
       const existingQuestions = [...state.questions];
+      const existingQuizzes = [...state.quizzes];
 
       const categoryByNormalizedName = new Map(
         existingCategories.map((c) => [normalizeCategoryName(c.name), c])
@@ -1337,9 +1823,11 @@
         return category ? category.name : MIX_CATEGORY.name;
       };
 
-      const signatureSet = new Set(
-        existingQuestions.map((q) => getQuestionSignature(q, getCategoryName(q.categoryId)))
+      const signatureSet = new Set(existingQuestions.map((q) => getQuestionSignature(q, getCategoryName(q.categoryId))));
+      const signatureToQuestionId = new Map(
+        existingQuestions.map((q) => [getQuestionSignature(q, getCategoryName(q.categoryId)), q.id])
       );
+      const incomingToMergedQuestionId = new Map();
 
       for (const incomingQuestion of data.questions) {
         const mappedCategoryId = incomingCategoryToTargetId.get(incomingQuestion.categoryId) || MIX_CATEGORY_ID;
@@ -1352,17 +1840,52 @@
         };
         const signature = getQuestionSignature(candidate, getCategoryName(mappedCategoryId));
         if (signatureSet.has(signature)) {
+          incomingToMergedQuestionId.set(incomingQuestion.id, signatureToQuestionId.get(signature));
           continue;
         }
         signatureSet.add(signature);
+        signatureToQuestionId.set(signature, candidate.id);
+        incomingToMergedQuestionId.set(incomingQuestion.id, candidate.id);
         existingQuestions.push(candidate);
+      }
+
+      const existingQuizSignatureSet = new Set(existingQuizzes.map((quiz) => getQuizSignature(quiz)));
+      for (const incomingQuiz of data.quizzes) {
+        if (!incomingQuiz || !incomingQuiz.id) {
+          continue;
+        }
+        const mappedCategoryIds = (incomingQuiz.selectedCategoryIds || [])
+          .map((id) => incomingCategoryToTargetId.get(id))
+          .filter(Boolean);
+        const mappedQuestionIds = (incomingQuiz.selectedQuestionIds || [])
+          .map((id) => incomingToMergedQuestionId.get(id))
+          .filter(Boolean);
+
+        const mergedQuiz = {
+          id: makeUuid(),
+          name: incomingQuiz.name || "Bez názvu kvízu",
+          description: incomingQuiz.description || "",
+          selectedCategoryIds: [...new Set(mappedCategoryIds)],
+          selectedQuestionIds: [...new Set(mappedQuestionIds)],
+          createdAt: incomingQuiz.createdAt || new Date().toISOString(),
+          lastModified: incomingQuiz.lastModified || new Date().toISOString()
+        };
+
+        const signature = getQuizSignature(mergedQuiz);
+        if (existingQuizSignatureSet.has(signature)) {
+          continue;
+        }
+        existingQuizSignatureSet.add(signature);
+        existingQuizzes.push(mergedQuiz);
       }
 
       state.categories = existingCategories;
       state.questions = existingQuestions;
+      state.quizzes = existingQuizzes;
       state.version = APP_VERSION;
       state.updatedAt = new Date().toISOString();
       state.editingQuestionId = null;
+      state.editingQuizId = null;
     }
 
     function updateCategorySelects() {
@@ -1725,6 +2248,11 @@
         return;
       }
       state.questions = state.questions.filter((item) => item.id !== questionId);
+      state.quizzes = state.quizzes.map((quiz) => ({
+        ...quiz,
+        selectedQuestionIds: quiz.selectedQuestionIds.filter((id) => id !== questionId),
+        lastModified: new Date().toISOString()
+      }));
       markUnsavedChanges();
       persistState();
     }
@@ -1858,14 +2386,21 @@
       updateCategorySelects();
       renderQuestions();
       renderCategoriesManager();
-      el.quickStats.textContent = `Otázky: ${state.questions.length} | Kategórie: ${state.categories.length}`;
+      renderQuizPickers();
+      renderQuizzesManager();
+      el.quickStats.textContent = `Otázky: ${state.questions.length} | Kategórie: ${state.categories.length} | Kvízy: ${state.quizzes.length}`;
       el.jsonVersion.textContent = `JSON verzia: ${state.version}`;
     }
 
     function switchTab(tabId) {
       el.tabCreate.classList.toggle("hidden", tabId !== "tab-create");
       el.tabManage.classList.toggle("hidden", tabId !== "tab-manage");
-      el.tabs.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tabId));
+      el.tabQuizzes.classList.toggle("hidden", tabId !== "tab-quizzes");
+      if (tabId === "tab-create") {
+        el.tabs.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === "tab-manage"));
+      } else {
+        el.tabs.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tabId));
+      }
     }
 
     function openCategoryDeleteModal(categoryId) {
@@ -1890,9 +2425,21 @@
       }
 
       if (deleteQuestions) {
+        const removedQuestionIds = state.questions.filter((q) => q.categoryId === categoryId).map((q) => q.id);
         state.questions = state.questions.filter((q) => q.categoryId !== categoryId);
+        state.quizzes = state.quizzes.map((quiz) => ({
+          ...quiz,
+          selectedCategoryIds: quiz.selectedCategoryIds.filter((id) => id !== categoryId),
+          selectedQuestionIds: quiz.selectedQuestionIds.filter((id) => !removedQuestionIds.includes(id)),
+          lastModified: new Date().toISOString()
+        }));
       } else {
         state.questions = state.questions.map((q) => q.categoryId === categoryId ? { ...q, categoryId: MIX_CATEGORY_ID, lastModified: new Date().toISOString() } : q);
+        state.quizzes = state.quizzes.map((quiz) => ({
+          ...quiz,
+          selectedCategoryIds: [...new Set(quiz.selectedCategoryIds.map((id) => id === categoryId ? MIX_CATEGORY_ID : id))],
+          lastModified: new Date().toISOString()
+        }));
       }
 
       state.categories = state.categories.filter((c) => c.id !== categoryId);
@@ -2106,6 +2653,7 @@
 
       el.filterCategory.addEventListener("change", renderQuestions);
       el.searchBox.addEventListener("input", renderQuestions);
+      el.openCreateFromManage.addEventListener("click", () => switchTab("tab-create"));
 
       el.questionsContainer.addEventListener("click", (event) => {
         const actionEl = event.target.closest("[data-action]");
@@ -2165,6 +2713,47 @@
           return;
         }
         openCategoryDeleteModal(btn.dataset.id);
+      });
+
+      el.quizCategoriesPicker.addEventListener("change", updateQuizSelectionUiState);
+      el.quizQuestionsPicker.addEventListener("change", updateQuizSelectionUiState);
+      el.saveQuizBtn.addEventListener("click", saveQuizFromForm);
+      el.resetQuizFormBtn.addEventListener("click", resetQuizForm);
+
+      el.quizQuestionSearch.addEventListener("input", renderQuizPickers);
+      el.quizQuestionCategoryFilter.addEventListener("change", renderQuizPickers);
+
+      el.toggleAllQuizCategories.addEventListener("click", () => {
+        const boxes = [...el.quizCategoriesPicker.querySelectorAll("input[type='checkbox'][data-kind='category']")];
+        const allSelected = boxes.length > 0 && boxes.every((item) => item.checked);
+        boxes.forEach((item) => {
+          item.checked = !allSelected;
+        });
+        updateQuizSelectionUiState();
+      });
+
+      el.toggleAllQuizQuestions.addEventListener("click", () => {
+        const visibleBoxes = [...el.quizQuestionsPicker.querySelectorAll("input[type='checkbox'][data-kind='question'][data-visible='1']")];
+        const allVisibleSelected = visibleBoxes.length > 0 && visibleBoxes.every((item) => item.checked);
+        visibleBoxes.forEach((item) => {
+          item.checked = !allVisibleSelected;
+        });
+        updateQuizSelectionUiState();
+      });
+
+      el.quizzesContainer.addEventListener("click", (event) => {
+        const actionEl = event.target.closest("[data-action]");
+        if (!actionEl) {
+          return;
+        }
+        const action = actionEl.dataset.action;
+        const id = actionEl.dataset.id;
+        if (action === "edit-quiz") {
+          loadQuizToForm(id);
+        }
+        if (action === "delete-quiz") {
+          deleteQuiz(id);
+        }
       });
 
       el.cancelCategoryDelete.addEventListener("click", closeCategoryDeleteModal);
