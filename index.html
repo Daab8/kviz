@@ -56,6 +56,27 @@
       flex-wrap: wrap;
     }
 
+    .title-tools {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .theme-toggle {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 999px;
+      padding: 0;
+      background: #f1f5f9;
+      color: #0f172a;
+      border: 1px solid var(--line);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+
     h1 {
       margin: 0;
       font-size: clamp(1.1rem, 2vw, 1.5rem);
@@ -624,6 +645,87 @@
       margin-top: 0;
     }
 
+    :root[data-theme="dark"] {
+      --bg: #0b1220;
+      --panel: #111827;
+      --ink: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #14b8a6;
+      --accent-2: #38bdf8;
+      --danger: #f87171;
+      --line: #334155;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+    }
+
+    :root[data-theme="dark"] body {
+      background:
+        radial-gradient(1200px 400px at 10% -10%, #0f2a33 0%, transparent 70%),
+        radial-gradient(900px 350px at 100% 0%, #172035 0%, transparent 65%),
+        var(--bg);
+    }
+
+    :root[data-theme="dark"] header {
+      background: rgba(15, 23, 42, 0.88);
+      border-bottom-color: var(--line);
+    }
+
+    :root[data-theme="dark"] .tab-btn,
+    :root[data-theme="dark"] .btn-secondary,
+    :root[data-theme="dark"] .theme-toggle,
+    :root[data-theme="dark"] .toggle-expand {
+      background: #0f172a;
+      color: var(--ink);
+      border-color: var(--line);
+    }
+
+    :root[data-theme="dark"] .tab-btn.active {
+      border-color: var(--accent);
+      background: linear-gradient(90deg, #11323d, #12273b);
+    }
+
+    :root[data-theme="dark"] input[type="text"],
+    :root[data-theme="dark"] input[type="number"],
+    :root[data-theme="dark"] textarea,
+    :root[data-theme="dark"] select {
+      background: #0f172a;
+      color: var(--ink);
+      border-color: var(--line);
+    }
+
+    :root[data-theme="dark"] .answer-row,
+    :root[data-theme="dark"] .ordering-field,
+    :root[data-theme="dark"] .status-box,
+    :root[data-theme="dark"] .question-card,
+    :root[data-theme="dark"] .image-modal,
+    :root[data-theme="dark"] .modal {
+      background: #0f172a;
+      border-color: var(--line);
+    }
+
+    :root[data-theme="dark"] .status-box {
+      color: #bfdbfe;
+      border-color: #3b82f6;
+    }
+
+    :root[data-theme="dark"] .badge,
+    :root[data-theme="dark"] .tag {
+      background: #102a3a;
+      border-color: #1d4d68;
+      color: #bae6fd;
+    }
+
+    :root[data-theme="dark"] .question-image,
+    :root[data-theme="dark"] .img-preview,
+    :root[data-theme="dark"] .image-modal img {
+      border-color: var(--line);
+    }
+
+    :root[data-theme="dark"] .question-card.expanded {
+      border-color: #22b8ee;
+      box-shadow: 0 0 0 1px rgba(34, 184, 238, 0.28), 0 0 10px rgba(14, 165, 233, 0.12);
+    }
+
     @media (max-width: 900px) {
       .inline-grid.two {
         grid-template-columns: 1fr;
@@ -808,7 +910,10 @@
     <div class="shell">
       <div class="title-row">
         <h1>Tvorca a správa kvízových otázok</h1>
-        <span class="muted" id="saveState">Neuložené zmeny</span>
+        <div class="title-tools">
+          <span class="muted" id="saveState">Neuložené zmeny</span>
+          <button type="button" id="themeToggle" class="theme-toggle" aria-label="Prepnúť tému">☾</button>
+        </div>
       </div>
       <div class="tabs-row">
         <div class="tabs">
@@ -934,6 +1039,7 @@
 
   <script>
     const STORAGE_KEY = "quiz_builder_data_v1";
+    const THEME_KEY = "quiz_builder_theme";
     const APP_VERSION = "1.0.0";
     const MAX_IMAGE_SIZE_BYTES = 512 * 1024;
     const MIX_CATEGORY_ID = "5dd4377a-3aeb-49c5-8a95-f3ce6ebed52f";
@@ -969,6 +1075,7 @@
       removeImageBtn: document.getElementById("removeImageBtn"),
       headerSaveBtn: document.getElementById("headerSaveBtn"),
       headerImportInput: document.getElementById("headerImportInput"),
+      themeToggle: document.getElementById("themeToggle"),
       saveState: document.getElementById("saveState"),
       quickStats: document.getElementById("quickStats"),
       jsonVersion: document.getElementById("jsonVersion"),
@@ -987,6 +1094,28 @@
     };
 
     const answerLabels = ["A", "B", "C", "D"];
+
+    function applyTheme(theme) {
+      const normalized = theme === "dark" ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", normalized);
+      el.themeToggle.textContent = normalized === "dark" ? "☀" : "☾";
+      el.themeToggle.setAttribute("aria-label", normalized === "dark" ? "Prepnúť na svetlú tému" : "Prepnúť na tmavú tému");
+    }
+
+    function getInitialTheme() {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === "dark" || saved === "light") {
+        return saved;
+      }
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+      const next = current === "dark" ? "light" : "dark";
+      applyTheme(next);
+      localStorage.setItem(THEME_KEY, next);
+    }
 
     function setSaveState(message, ok = true) {
       el.saveState.textContent = message;
@@ -1913,6 +2042,8 @@
         btn.addEventListener("click", () => switchTab(btn.dataset.tab));
       });
 
+      el.themeToggle.addEventListener("click", toggleTheme);
+
       document.addEventListener("change", (event) => {
         if (event.target && event.target.matches("input[name='mode']")) {
           markUnsavedChanges();
@@ -2098,6 +2229,7 @@
     }
 
     function init() {
+      applyTheme(getInitialTheme());
       renderAnswerInputs();
       updateCategorySelects();
       wireEvents();
