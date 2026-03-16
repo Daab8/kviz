@@ -765,13 +765,19 @@
       }
 
       .answer-row {
-        row-gap: 0.4rem;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        row-gap: 0;
       }
 
       .answer-row input[type="radio"],
       .answer-row input[type="checkbox"] {
-        grid-column: 1 / -1;
-        justify-self: start;
+        grid-column: auto;
+        justify-self: end;
+      }
+
+      .answer-row input[type="text"] {
+        min-width: 0;
       }
 
       .question-summary {
