@@ -1264,9 +1264,7 @@
       </div>
 
       <div class="status-box" style="margin-top:0.8rem">
-        <strong>Aktuálny súhrn</strong>
         <p id="quickStats">Otázky: 0 | Kategórie: 1</p>
-        <p class="muted" id="jsonVersion">JSON verzia: 1.0.0</p>
       </div>
     </section>
 
@@ -1281,6 +1279,10 @@
         </div>
 
         <div id="quizzesContainer"></div>
+
+        <div class="status-box" style="margin-top:0.8rem">
+          <p id="quizStats">Kvízy: 0</p>
+        </div>
       </div>
 
       <div id="quizBuilderView" class="quiz-grid hidden">
@@ -1389,7 +1391,7 @@
       themeToggle: document.getElementById("themeToggle"),
       saveState: document.getElementById("saveState"),
       quickStats: document.getElementById("quickStats"),
-      jsonVersion: document.getElementById("jsonVersion"),
+      quizStats: document.getElementById("quizStats"),
       filterCategory: document.getElementById("filterCategory"),
       searchBox: document.getElementById("searchBox"),
       openCreateFromManage: document.getElementById("openCreateFromManage"),
@@ -2524,8 +2526,8 @@
       renderCategoriesManager();
       renderQuizPickers();
       renderQuizzesManager();
-      el.quickStats.textContent = `Otázky: ${state.questions.length} | Kategórie: ${state.categories.length} | Kvízy: ${state.quizzes.length}`;
-      el.jsonVersion.textContent = `JSON verzia: ${state.version}`;
+      el.quickStats.textContent = `Otázky: ${state.questions.length} | Kategórie: ${state.categories.length}`;
+      el.quizStats.textContent = `Kvízy: ${state.quizzes.length}`;
     }
 
     function switchTab(tabId) {
