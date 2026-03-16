@@ -1,0 +1,1960 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tvorca Kvizu</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --accent: #0f766e;
+      --accent-2: #0ea5e9;
+      --danger: #dc2626;
+      --line: #dbe3ef;
+      --ok: #15803d;
+      --warn: #a16207;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 400px at 10% -10%, #c7f9f0 0%, transparent 70%),
+        radial-gradient(900px 350px at 100% 0%, #dbeafe 0%, transparent 65%),
+        var(--bg);
+      min-height: 100vh;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .shell {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.1rem, 2vw, 1.5rem);
+      letter-spacing: 0.3px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.85rem;
+      flex-wrap: wrap;
+    }
+
+    .tabs-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 0.85rem;
+    }
+
+    .tab-btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 0.55rem 0.9rem;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      border-color: var(--accent-2);
+      transform: translateY(-1px);
+    }
+
+    .tab-btn.active {
+      border-color: var(--accent);
+      background: linear-gradient(90deg, #dcfce7, #e0f2fe);
+    }
+
+    main {
+      max-width: 700px;
+      margin: 1rem auto 2rem auto;
+      padding: 0 1rem 1.25rem;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1.4rem;
+      box-shadow: 0 8px 26px rgba(15, 23, 42, 0.05);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .field {
+      margin-bottom: 0.75rem;
+    }
+
+    .inline-grid {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .inline-grid.two {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .inline-grid.equal {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    label {
+      display: block;
+      font-size: 0.9rem;
+      margin-bottom: 0.35rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 0.6rem 0.7rem;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      outline: none;
+      font-size: 0.95rem;
+      background: #fff;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.16);
+    }
+
+    textarea {
+      resize: none;
+      min-height: 92px;
+    }
+
+    #points {
+      width: 8ch;
+      min-width: 8ch;
+      margin-left: auto;
+      text-align: center;
+      padding-left: 0.2rem;
+      padding-right: 0.2rem;
+    }
+
+    #points::-webkit-outer-spin-button,
+    #points::-webkit-inner-spin-button {
+      opacity: 1;
+      -webkit-appearance: auto;
+      margin: 0;
+    }
+
+    #categorySelect,
+    #filterCategory {
+      max-width: 52ch;
+    }
+
+    .answer-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.65rem;
+    }
+
+    .answer-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0.5rem;
+      align-items: center;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.55rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 50%;
+      background: #ecfeff;
+      border: 1px solid #bae6fd;
+      font-weight: 700;
+      color: #075985;
+      font-size: 0.85rem;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.9rem;
+    }
+
+    button,
+    .pseudo-btn {
+      border: none;
+      border-radius: 10px;
+      padding: 0.62rem 0.95rem;
+      cursor: pointer;
+      font-size: 0.92rem;
+      font-weight: 600;
+      transition: 0.18s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #0f172a;
+      border: 1px solid var(--line);
+    }
+
+    .btn-danger {
+      background: #fef2f2;
+      color: var(--danger);
+      border: 1px solid #fecaca;
+    }
+
+    button:hover,
+    .pseudo-btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(0.98);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      filter: none;
+    }
+
+    .status-box {
+      background: #f8fafc;
+      border: 1px dashed #bfdbfe;
+      border-radius: 12px;
+      padding: 0.75rem;
+      color: #1e3a8a;
+      font-size: 0.9rem;
+    }
+
+    .meta {
+      display: flex;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      margin: 0.5rem 0 0.8rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .question-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 0.85rem;
+      margin-bottom: 0.8rem;
+      background: #fff;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    .question-card.expanded {
+      border-color: #0ea5e9;
+      border-width: 2px;
+      box-shadow: none;
+    }
+
+    .question-card.expanded .question-summary {
+      border: none;
+      border-radius: 0;
+      padding: 0;
+    }
+
+    .question-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .question-title {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.35;
+    }
+
+    .question-details {
+      display: none;
+      margin-top: 0.65rem;
+      padding-top: 0.65rem;
+      border-top: 1px dashed var(--line);
+    }
+
+    .question-details-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.75rem;
+      align-items: stretch;
+      grid-template-areas:
+        "main actions"
+        "image image"
+        "meta meta";
+    }
+
+    .question-card.expanded .question-details {
+      display: block;
+    }
+
+    .toggle-expand {
+      min-width: 2.2rem;
+      width: 2.2rem;
+      height: 2.2rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      color: #0f172a;
+      border-radius: 10px;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .question-main {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      grid-area: main;
+      height: 100%;
+    }
+
+    .question-tags {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      gap: 0.35rem;
+      width: 100%;
+    }
+
+    .question-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 0;
+      align-items: flex-end;
+      justify-content: flex-start;
+      grid-area: actions;
+    }
+
+    .question-actions button {
+      min-width: 120px;
+    }
+
+    .question-image-wrap {
+      grid-area: image;
+      display: flex;
+      justify-content: center;
+    }
+
+    .question-image {
+      width: 100%;
+      max-width: 100%;
+      max-height: 300px;
+      object-fit: contain;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      display: block;
+    }
+
+    .question-image-open {
+      width: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: zoom-in;
+      border-radius: 10px;
+    }
+
+    .question-image-open:hover {
+      transform: none;
+      filter: none;
+    }
+
+    .image-modal {
+      width: min(1000px, 96vw);
+      max-height: 94vh;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      padding: 0.7rem;
+      display: grid;
+      gap: 0.55rem;
+      position: relative;
+    }
+
+    .image-modal img {
+      max-width: 100%;
+      max-height: calc(94vh - 80px);
+      display: block;
+      margin: 0 auto;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+    }
+
+    .image-modal-close {
+      position: absolute;
+      top: 0.45rem;
+      right: 0.45rem;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 999px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .question-meta {
+      grid-area: meta;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid #bae6fd;
+      background: #ecfeff;
+      color: #0c4a6e;
+      font-size: 0.78rem;
+    }
+
+    .answers-list {
+      margin: 0.55rem 0 0;
+      padding-left: 0;
+      list-style: none;
+      display: block;
+    }
+
+    .answers-list li {
+      margin-bottom: 0.3rem;
+    }
+
+    .correct {
+      color: var(--ok);
+      font-weight: 700;
+    }
+
+    .warn {
+      color: var(--warn);
+      font-size: 0.88rem;
+    }
+
+    .file-input-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    .img-preview {
+      margin-top: 0.5rem;
+      max-width: 220px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      display: none;
+    }
+
+    .img-preview.show {
+      display: block;
+    }
+
+    .split {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .mode-row {
+      flex-wrap: nowrap;
+      gap: 0.7rem;
+    }
+
+    .points-field {
+      justify-self: end;
+      width: max-content;
+    }
+
+    .image-actions-row {
+      width: 100%;
+    }
+
+    .save-right {
+      margin-left: auto;
+    }
+
+    .ordering-field {
+      margin-top: 0.7rem;
+      padding: 0.7rem;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      background: #f8fafc;
+    }
+
+    .ordering-grid {
+      display: grid;
+      gap: 0.6rem;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .ordering-item label {
+      margin-bottom: 0.2rem;
+      font-size: 0.82rem;
+    }
+
+    .categories-box {
+      margin-top: 0.8rem;
+      border-top: 1px dashed var(--line);
+      padding-top: 0.8rem;
+    }
+
+    .category-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid #f1f5f9;
+      gap: 0.5rem;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.35rem;
+    }
+
+    .label-row label {
+      margin-bottom: 0;
+    }
+
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.48);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 99;
+      padding: 1rem;
+    }
+
+    .modal {
+      width: min(520px, 100%);
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      padding: 1rem;
+    }
+
+    .modal h3 {
+      margin-top: 0;
+    }
+
+    @media (max-width: 900px) {
+      .inline-grid.two {
+        grid-template-columns: 1fr;
+      }
+
+      .inline-grid.equal {
+        grid-template-columns: 1fr;
+      }
+
+      .mode-row {
+        flex-wrap: wrap;
+      }
+
+      .answers-list {
+        grid-template-columns: 1fr;
+      }
+
+      .question-head {
+        grid-template-columns: 1fr;
+      }
+
+      .question-summary {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+
+      .question-details-layout {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "main"
+          "actions"
+          "image"
+          "meta";
+      }
+
+      .question-tags {
+        justify-content: flex-start;
+      }
+
+      .question-actions {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .question-actions button {
+        min-width: 0;
+      }
+
+      .ordering-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .answer-row {
+        grid-template-columns: auto 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell">
+      <div class="title-row">
+        <h1>Tvorca a správa kvízových otázok</h1>
+        <span class="muted" id="saveState">Neuložené zmeny</span>
+      </div>
+      <div class="tabs-row">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="tab-create">Vytvorenie otázky</button>
+          <button class="tab-btn" data-tab="tab-manage">Správa otázok</button>
+        </div>
+        <div class="header-actions">
+          <label class="pseudo-btn btn-secondary" for="headerImportInput">Načítať</label>
+          <input id="headerImportInput" class="file-input-hidden" type="file" accept="application/json">
+          <button type="button" id="headerSaveBtn" class="btn-secondary">Uložiť</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="tab-create" class="panel">
+      <form id="questionForm">
+        <div class="field">
+          <label for="questionText">Otázka</label>
+          <textarea id="questionText" maxlength="200" required placeholder="Sem napíšte znenie otázky..."></textarea>
+        </div>
+
+        <div class="inline-grid two">
+          <div class="field">
+            <label>Typ správnej odpovede</label>
+            <div class="split mode-row">
+              <label><input type="radio" name="mode" value="single" checked> Jedna správna odpoveď</label>
+              <label><input type="radio" name="mode" value="multiple"> Viac správnych odpovedí</label>
+              <label><input type="radio" name="mode" value="ordering"> Zoradenie</label>
+            </div>
+          </div>
+
+          <div class="field points-field">
+            <label for="points">Body</label>
+            <input id="points" type="number" min="1" max="5" step="1" value="1" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="label-row">
+            <label>Odpovede</label>
+            <label><input id="shuffleAnswers" type="checkbox" checked> Zamiešať odpovede</label>
+          </div>
+          <div class="answer-grid" id="answerGrid"></div>
+          <div id="orderingField" class="ordering-field hidden">
+            <label>Správna postupnosť odpovedí</label>
+            <div id="orderingGrid" class="ordering-grid"></div>
+          </div>
+        </div>
+
+        <div class="inline-grid equal">
+          <div class="field">
+            <label for="categorySelect">Kategória</label>
+            <select id="categorySelect"></select>
+          </div>
+
+          <div class="field">
+            <label for="newCategory">Nová kategória (voliteľné)</label>
+            <input id="newCategory" type="text" placeholder="Napr. Matematika">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Obrázok k otázke (voliteľné)</label>
+          <div class="split image-actions-row">
+            <label class="pseudo-btn btn-secondary" for="imageInput">Vybrať obrázok</label>
+            <input id="imageInput" class="file-input-hidden" type="file" accept="image/*">
+            <button id="removeImageBtn" type="button" class="btn-secondary">Odstrániť obrázok</button>
+            <button type="submit" id="saveQuestionBtn" class="btn-primary save-right">Uložiť otázku</button>
+          </div>
+          <img id="imagePreview" class="img-preview" alt="Náhľad obrázka otázky" />
+        </div>
+      </form>
+    </section>
+
+    <section id="tab-manage" class="panel hidden">
+      <div class="inline-grid equal">
+        <div class="field">
+          <label for="filterCategory">Filtrovať podľa kategórie</label>
+          <select id="filterCategory"></select>
+        </div>
+
+        <div class="field">
+          <label for="searchBox">Hľadať v otázkach a odpovediach</label>
+          <input id="searchBox" type="text" placeholder="Zadajte text na vyhľadanie...">
+        </div>
+      </div>
+
+      <div id="questionsContainer"></div>
+
+      <div class="categories-box">
+        <h3>Správa kategórií</h3>
+        <div id="categoriesContainer"></div>
+      </div>
+
+      <div class="status-box" style="margin-top:0.8rem">
+        <strong>Aktuálny súhrn</strong>
+        <p id="quickStats">Otázky: 0 | Kategórie: 1</p>
+        <p class="muted" id="jsonVersion">JSON verzia: 1.0.0</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="categoryModalBackdrop" class="modal-backdrop">
+    <div class="modal">
+      <h3>Zmazanie kategórie</h3>
+      <p id="categoryModalText"></p>
+      <div class="actions">
+        <button id="deleteCategoryWithQuestions" class="btn-danger" type="button">Zmazať kategóriu aj otázky</button>
+        <button id="moveCategoryToMix" class="btn-secondary" type="button">Presunúť otázky do Rôzne</button>
+        <button id="cancelCategoryDelete" class="btn-secondary" type="button">Zrušiť</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="imageModalBackdrop" class="modal-backdrop">
+    <div class="image-modal">
+      <button id="imageModalClose" type="button" class="btn-secondary image-modal-close" aria-label="Zavrieť">X</button>
+      <img id="imageModalImage" alt="Zväčšený obrázok otázky">
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "quiz_builder_data_v1";
+    const APP_VERSION = "1.0.0";
+    const MAX_IMAGE_SIZE_BYTES = 512 * 1024;
+    const MIX_CATEGORY_ID = "5dd4377a-3aeb-49c5-8a95-f3ce6ebed52f";
+    const MIX_CATEGORY = { id: MIX_CATEGORY_ID, name: "Rôzne", createdAt: new Date().toISOString() };
+
+    const state = {
+      version: APP_VERSION,
+      updatedAt: new Date().toISOString(),
+      categories: [MIX_CATEGORY],
+      questions: [],
+      hasUnsavedChanges: false,
+      editingQuestionId: null,
+      pendingCategoryDeleteId: null,
+      expandedQuestionIds: new Set()
+    };
+
+    const el = {
+      tabs: document.querySelectorAll(".tab-btn"),
+      tabCreate: document.getElementById("tab-create"),
+      tabManage: document.getElementById("tab-manage"),
+      answerGrid: document.getElementById("answerGrid"),
+      orderingField: document.getElementById("orderingField"),
+      orderingGrid: document.getElementById("orderingGrid"),
+      shuffleAnswers: document.getElementById("shuffleAnswers"),
+      questionForm: document.getElementById("questionForm"),
+      questionText: document.getElementById("questionText"),
+      points: document.getElementById("points"),
+      categorySelect: document.getElementById("categorySelect"),
+      newCategory: document.getElementById("newCategory"),
+      imageInput: document.getElementById("imageInput"),
+      imagePreview: document.getElementById("imagePreview"),
+      saveQuestionBtn: document.getElementById("saveQuestionBtn"),
+      removeImageBtn: document.getElementById("removeImageBtn"),
+      headerSaveBtn: document.getElementById("headerSaveBtn"),
+      headerImportInput: document.getElementById("headerImportInput"),
+      saveState: document.getElementById("saveState"),
+      quickStats: document.getElementById("quickStats"),
+      jsonVersion: document.getElementById("jsonVersion"),
+      filterCategory: document.getElementById("filterCategory"),
+      searchBox: document.getElementById("searchBox"),
+      questionsContainer: document.getElementById("questionsContainer"),
+      categoriesContainer: document.getElementById("categoriesContainer"),
+      categoryModalBackdrop: document.getElementById("categoryModalBackdrop"),
+      categoryModalText: document.getElementById("categoryModalText"),
+      deleteCategoryWithQuestions: document.getElementById("deleteCategoryWithQuestions"),
+      moveCategoryToMix: document.getElementById("moveCategoryToMix"),
+      cancelCategoryDelete: document.getElementById("cancelCategoryDelete"),
+      imageModalBackdrop: document.getElementById("imageModalBackdrop"),
+      imageModalImage: document.getElementById("imageModalImage"),
+      imageModalClose: document.getElementById("imageModalClose")
+    };
+
+    const answerLabels = ["A", "B", "C", "D"];
+
+    function setSaveState(message, ok = true) {
+      el.saveState.textContent = message;
+      el.saveState.style.color = ok ? "#166534" : "#991b1b";
+    }
+
+    function markUnsavedChanges() {
+      state.hasUnsavedChanges = true;
+      setSaveState("Neuložené zmeny", false);
+    }
+
+    function markSavedToJson() {
+      state.hasUnsavedChanges = false;
+      setSaveState(`Uložené JSON: ${formatDate(state.updatedAt)}`, true);
+    }
+
+    function warnIfVersionMismatch(data, sourceLabel) {
+      const fileVersion = data && typeof data.version === "string" ? data.version : "(chýba)";
+      if (fileVersion !== APP_VERSION) {
+        alert(`Varovanie: verzia JSON ${fileVersion} sa nezhoduje s verziou aplikácie ${APP_VERSION} (${sourceLabel}).`);
+      }
+    }
+
+    function makeUuid() {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
+      }
+      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+        const rand = Math.random() * 16 | 0;
+        const val = char === "x" ? rand : (rand & 0x3 | 0x8);
+        return val.toString(16);
+      });
+    }
+
+    function normalizeCategoryName(value) {
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    function ensureDataIntegrity(data) {
+      if (!data || typeof data !== "object") {
+        return;
+      }
+      if (!Array.isArray(data.categories)) {
+        data.categories = [];
+      }
+      if (!Array.isArray(data.questions)) {
+        data.questions = [];
+      }
+
+      if (!data.categories.find((c) => c && c.id === MIX_CATEGORY_ID)) {
+        data.categories.unshift({ ...MIX_CATEGORY });
+      }
+
+      data.categories = data.categories
+        .filter((c) => c && c.id)
+        .map((c) => ({ ...c, name: c.name || "Bez názvu", createdAt: c.createdAt || new Date().toISOString() }));
+
+      data.version = data.version || APP_VERSION;
+      data.updatedAt = data.updatedAt || new Date().toISOString();
+
+      for (const q of data.questions) {
+        q.answerType = ["single", "multiple", "ordering"].includes(q.answerType)
+          ? q.answerType
+          : (q.allowMultiple ? "multiple" : "single");
+        q.answers = Array.isArray(q.answers) ? q.answers : [];
+        q.ordering = q.answerType === "ordering" && Array.isArray(q.ordering)
+          ? q.ordering.filter((id) => answerLabels.includes(id)).slice(0, answerLabels.length)
+          : [];
+        const parsedPoints = Number(q.points);
+        q.points = Number.isInteger(parsedPoints) ? Math.min(5, Math.max(1, parsedPoints)) : 1;
+        q.allowMultiple = q.answerType === "multiple";
+        q.categoryId = data.categories.find((c) => c.id === q.categoryId) ? q.categoryId : MIX_CATEGORY_ID;
+        q.lastModified = q.lastModified || new Date().toISOString();
+        if (Object.prototype.hasOwnProperty.call(q, "shuffleAnswers")) {
+          delete q.shuffleAnswers;
+        }
+      }
+    }
+
+    function getDataForStorage() {
+      return {
+        version: state.version,
+        updatedAt: state.updatedAt,
+        categories: state.categories,
+        questions: state.questions.map((q) => {
+          const { shuffleAnswers, ...rest } = q;
+          return rest;
+        })
+      };
+    }
+
+    function applyLoadedData(data) {
+      ensureDataIntegrity(data);
+      state.version = data.version;
+      state.updatedAt = data.updatedAt;
+      state.categories = data.categories;
+      state.questions = data.questions;
+      state.editingQuestionId = null;
+    }
+
+    function normalizeText(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function getQuestionSignature(question, categoryName) {
+      const qType = ["single", "multiple", "ordering"].includes(question.answerType)
+        ? question.answerType
+        : (question.allowMultiple ? "multiple" : "single");
+
+      const normalizedAnswers = (Array.isArray(question.answers) ? question.answers : []).map((a) => ({
+        id: a.id,
+        text: normalizeText(a.text),
+        correct: Boolean(a.correct)
+      }));
+
+      if (qType === "ordering") {
+        const byId = Object.fromEntries(normalizedAnswers.map((a) => [a.id, a.text]));
+        const orderByText = (Array.isArray(question.ordering) ? question.ordering : [])
+          .map((id) => byId[id] || "")
+          .join(">>");
+        const answersSet = normalizedAnswers
+          .map((a) => a.text)
+          .sort()
+          .join("|");
+        return [
+          normalizeText(question.text),
+          qType,
+          normalizeCategoryName(categoryName),
+          String(question.points || 1),
+          answersSet,
+          orderByText
+        ].join("||");
+      }
+
+      const answersPart = normalizedAnswers
+        .map((a) => `${a.text}:${a.correct ? 1 : 0}`)
+        .sort()
+        .join("|");
+
+      return [
+        normalizeText(question.text),
+        qType,
+        normalizeCategoryName(categoryName),
+        String(question.points || 1),
+        answersPart
+      ].join("||");
+    }
+
+    function chooseImportMode() {
+      const answer = window.prompt(
+        "Načítanie JSON:\n1 = načítať iba nový (nahradiť)\n2 = spojiť s aktuálnymi dátami (bez duplicít)\nZadajte 1 alebo 2.",
+        "2"
+      );
+
+      if (answer === null) {
+        return null;
+      }
+      const trimmed = String(answer).trim();
+      if (trimmed === "1") {
+        return "replace";
+      }
+      if (trimmed === "2") {
+        return "merge";
+      }
+      alert("Neplatná voľba. Import bol zrušený.");
+      return null;
+    }
+
+    function mergeLoadedData(data) {
+      ensureDataIntegrity(data);
+
+      const existingCategories = [...state.categories];
+      const existingQuestions = [...state.questions];
+
+      const categoryByNormalizedName = new Map(
+        existingCategories.map((c) => [normalizeCategoryName(c.name), c])
+      );
+      const incomingCategoryToTargetId = new Map();
+
+      for (const incomingCategory of data.categories) {
+        if (!incomingCategory || !incomingCategory.id) {
+          continue;
+        }
+
+        if (incomingCategory.id === MIX_CATEGORY_ID || normalizeCategoryName(incomingCategory.name) === normalizeCategoryName(MIX_CATEGORY.name)) {
+          incomingCategoryToTargetId.set(incomingCategory.id, MIX_CATEGORY_ID);
+          continue;
+        }
+
+        const key = normalizeCategoryName(incomingCategory.name);
+        const existing = categoryByNormalizedName.get(key);
+        if (existing) {
+          incomingCategoryToTargetId.set(incomingCategory.id, existing.id);
+          continue;
+        }
+
+        const newCategory = {
+          id: makeUuid(),
+          name: incomingCategory.name,
+          createdAt: incomingCategory.createdAt || new Date().toISOString()
+        };
+        existingCategories.push(newCategory);
+        categoryByNormalizedName.set(key, newCategory);
+        incomingCategoryToTargetId.set(incomingCategory.id, newCategory.id);
+      }
+
+      const getCategoryName = (categoryId) => {
+        const category = existingCategories.find((c) => c.id === categoryId);
+        return category ? category.name : MIX_CATEGORY.name;
+      };
+
+      const signatureSet = new Set(
+        existingQuestions.map((q) => getQuestionSignature(q, getCategoryName(q.categoryId)))
+      );
+
+      for (const incomingQuestion of data.questions) {
+        const mappedCategoryId = incomingCategoryToTargetId.get(incomingQuestion.categoryId) || MIX_CATEGORY_ID;
+        const candidate = {
+          ...incomingQuestion,
+          id: makeUuid(),
+          categoryId: mappedCategoryId,
+          createdAt: incomingQuestion.createdAt || new Date().toISOString(),
+          lastModified: incomingQuestion.lastModified || new Date().toISOString()
+        };
+        const signature = getQuestionSignature(candidate, getCategoryName(mappedCategoryId));
+        if (signatureSet.has(signature)) {
+          continue;
+        }
+        signatureSet.add(signature);
+        existingQuestions.push(candidate);
+      }
+
+      state.categories = existingCategories;
+      state.questions = existingQuestions;
+      state.version = APP_VERSION;
+      state.updatedAt = new Date().toISOString();
+      state.editingQuestionId = null;
+    }
+
+    function updateCategorySelects() {
+      const options = state.categories
+        .map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+        .join("");
+
+      el.categorySelect.innerHTML = options;
+
+      const filterOpts = ["<option value=\"all\">Všetky kategórie</option>"]
+        .concat(state.categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`))
+        .join("");
+      const prev = el.filterCategory.value || "all";
+      el.filterCategory.innerHTML = filterOpts;
+      if ([...el.filterCategory.options].some((o) => o.value === prev)) {
+        el.filterCategory.value = prev;
+      }
+    }
+
+    function getSelectedMode() {
+      const checked = document.querySelector("input[name='mode']:checked");
+      return checked ? checked.value : "single";
+    }
+
+    function renderAnswerInputs() {
+      const mode = getSelectedMode();
+      const inputType = mode === "single" ? "radio" : "checkbox";
+      const group = mode === "single" ? "name=\"correct-single\"" : "";
+
+      const rows = answerLabels.map((letter, idx) => {
+        const controlHtml = mode === "ordering"
+          ? `<span aria-hidden="true"></span>`
+          : `<input type="${inputType}" ${group} id="answerCorrect-${idx}" aria-label="Správna odpoveď ${letter}">`;
+        return `
+          <div class="answer-row">
+            <span class="badge">${letter}</span>
+            <input type="text" id="answerText-${idx}" placeholder="Text odpovede ${letter}" maxlength="50" required>
+            ${controlHtml}
+          </div>
+        `;
+      }).join("");
+
+      el.answerGrid.innerHTML = rows;
+      renderOrderingInputs();
+      updateSaveButtonState();
+    }
+
+    function getOrderingFromInputs() {
+      return answerLabels
+        .map((_, idx) => document.getElementById(`ordering-${idx}`))
+        .filter(Boolean)
+        .map((select) => select.value);
+    }
+
+    function hasExactOrdering(ordering) {
+      if (!Array.isArray(ordering) || ordering.length !== answerLabels.length) {
+        return false;
+      }
+      return answerLabels.every((label) => ordering.filter((item) => item === label).length === 1);
+    }
+
+    function sortAnswersById(answers) {
+      const order = { A: 0, B: 1, C: 2, D: 3 };
+      return [...answers].sort((a, b) => (order[a.id] ?? 99) - (order[b.id] ?? 99));
+    }
+
+    function shuffleArray(items) {
+      const arr = [...items];
+      for (let i = arr.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function applyAnswerArrangement(answers, answerType, ordering, shuffleEnabled) {
+      const withSource = answers.map((a) => ({ ...a, _sourceId: a.id }));
+      const arranged = shuffleEnabled ? shuffleArray(withSource) : sortAnswersById(withSource);
+
+      const remap = {};
+      arranged.forEach((a, idx) => {
+        remap[a._sourceId] = answerLabels[idx];
+      });
+
+      const normalizedAnswers = arranged.map((a, idx) => ({
+        id: answerLabels[idx],
+        text: a.text,
+        correct: a.correct
+      }));
+
+      const normalizedOrdering = answerType === "ordering"
+        ? ordering.map((id) => remap[id]).filter((id) => answerLabels.includes(id))
+        : [];
+
+      return {
+        answers: normalizedAnswers,
+        ordering: normalizedOrdering
+      };
+    }
+
+    function renderOrderingInputs() {
+      const mode = getSelectedMode();
+      if (mode !== "ordering") {
+        el.orderingField.classList.add("hidden");
+        el.orderingGrid.innerHTML = "";
+        return;
+      }
+
+      el.orderingField.classList.remove("hidden");
+      const current = getOrderingFromInputs();
+      const sequence = current.length === answerLabels.length ? current : [...answerLabels];
+
+      el.orderingGrid.innerHTML = answerLabels.map((_, idx) => {
+        const options = answerLabels
+          .map((letter) => `<option value="${letter}">${letter}</option>`)
+          .join("");
+        return `
+          <div class="ordering-item">
+            <label for="ordering-${idx}">Pozícia ${idx + 1}</label>
+            <select id="ordering-${idx}">${options}</select>
+          </div>
+        `;
+      }).join("");
+
+      sequence.forEach((letter, idx) => {
+        const select = document.getElementById(`ordering-${idx}`);
+        if (select) {
+          select.value = letter;
+        }
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function getCategoryById(id) {
+      return state.categories.find((c) => c.id === id);
+    }
+
+    function readImageAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.onerror = () => reject(new Error("Nepodarilo sa načítať obrázok."));
+        fr.readAsDataURL(file);
+      });
+    }
+
+    function setImagePreview(dataUrl) {
+      if (dataUrl) {
+        el.imagePreview.src = dataUrl;
+        el.imagePreview.classList.add("show");
+      } else {
+        el.imagePreview.removeAttribute("src");
+        el.imagePreview.classList.remove("show");
+      }
+    }
+
+    function collectAnswers() {
+      const answers = answerLabels.map((letter, idx) => {
+        const text = document.getElementById(`answerText-${idx}`).value.trim();
+        const correctEl = document.getElementById(`answerCorrect-${idx}`);
+        const correct = correctEl ? correctEl.checked : false;
+        return { id: letter, text, correct };
+      });
+      return answers;
+    }
+
+    function isQuestionFormValid() {
+      if (!el.questionText.value.trim()) {
+        return false;
+      }
+
+      const points = Number(el.points.value);
+      if (!Number.isInteger(points) || points < 1 || points > 5) {
+        return false;
+      }
+
+      const answers = collectAnswers();
+      if (answers.some((a) => !a.text)) {
+        return false;
+      }
+
+      const mode = getSelectedMode();
+      const correctCount = answers.filter((a) => a.correct).length;
+      const ordering = getOrderingFromInputs();
+      const validOrdering = hasExactOrdering(ordering);
+
+      if (mode === "ordering") {
+        return validOrdering;
+      }
+
+      if (mode === "single" && correctCount !== 1) {
+        return false;
+      }
+      if (mode === "multiple" && correctCount < 1) {
+        return false;
+      }
+
+      return true;
+    }
+
+    function updateSaveButtonState() {
+      el.saveQuestionBtn.disabled = !isQuestionFormValid();
+    }
+
+    function validateQuestion(answers, mode, ordering) {
+      if (!el.questionText.value.trim()) {
+        return "Otázka nesmie byť prázdna.";
+      }
+      if (answers.some((a) => !a.text)) {
+        return "Vyplňte všetky odpovede.";
+      }
+
+      if (mode === "ordering") {
+        if (!hasExactOrdering(ordering)) {
+          return "Pri type Zoradenie nastavte kompletné poradie A/B/C/D bez opakovania.";
+        }
+        return null;
+      }
+
+      const correctCount = answers.filter((a) => a.correct).length;
+      if (mode === "single" && correctCount !== 1) {
+        return "Pri režime jednej správnej odpovede musí byť označená presne 1 správna odpoveď.";
+      }
+      if (mode === "multiple" && correctCount < 1) {
+        return "Pri režime viacerých správnych odpovedí musí byť označená aspoň 1 správna odpoveď.";
+      }
+      const points = Number(el.points.value);
+      if (!Number.isInteger(points) || points < 1 || points > 5) {
+        return "Počet bodov musí byť celé číslo od 1 do 5.";
+      }
+      return null;
+    }
+
+    function upsertCategory() {
+      const newCategoryName = el.newCategory.value.trim();
+      if (!newCategoryName) {
+        return el.categorySelect.value;
+      }
+
+      const normalizedNew = normalizeCategoryName(newCategoryName);
+      const existing = state.categories.find((c) => normalizeCategoryName(c.name) === normalizedNew);
+      if (existing) {
+        alert(`Kategória "${existing.name}" už existuje.`);
+        return existing.id;
+      }
+
+      const id = makeUuid();
+      state.categories.push({ id, name: newCategoryName, createdAt: new Date().toISOString() });
+      return id;
+    }
+
+    async function persistState() {
+      try {
+        state.updatedAt = new Date().toISOString();
+        const json = JSON.stringify(getDataForStorage(), null, 2);
+        localStorage.setItem(STORAGE_KEY, json);
+      } catch (err) {
+        console.error(err);
+        setSaveState(`Chyba ukladania: ${err.message}`, false);
+      }
+      refreshUI();
+    }
+
+    function resetForm() {
+      state.editingQuestionId = null;
+      el.questionForm.reset();
+      el.points.value = "1";
+      document.querySelector("input[name='mode'][value='single']").checked = true;
+      renderAnswerInputs();
+      setImagePreview(null);
+      el.saveQuestionBtn.textContent = "Uložiť otázku";
+      el.newCategory.value = "";
+      el.categorySelect.value = MIX_CATEGORY_ID;
+      el.shuffleAnswers.checked = true;
+      el.orderingField.classList.add("hidden");
+      el.orderingGrid.innerHTML = "";
+      updateSaveButtonState();
+    }
+
+    function loadQuestionToForm(questionId) {
+      const q = state.questions.find((item) => item.id === questionId);
+      if (!q) {
+        return;
+      }
+      state.editingQuestionId = q.id;
+      el.questionText.value = q.text;
+      el.points.value = String(q.points || 1);
+      el.categorySelect.value = q.categoryId;
+      el.newCategory.value = "";
+      el.shuffleAnswers.checked = true;
+      const qType = ["single", "multiple", "ordering"].includes(q.answerType)
+        ? q.answerType
+        : (q.allowMultiple ? "multiple" : "single");
+      document.querySelector(`input[name='mode'][value='${qType}']`).checked = true;
+      renderAnswerInputs();
+      answerLabels.forEach((letter, idx) => {
+        const answer = q.answers.find((a) => a.id === letter);
+        document.getElementById(`answerText-${idx}`).value = answer ? answer.text : "";
+        const correctEl = document.getElementById(`answerCorrect-${idx}`);
+        if (correctEl) {
+          correctEl.checked = Boolean(answer && answer.correct);
+        }
+      });
+      if (qType === "ordering") {
+        const ordering = Array.isArray(q.ordering) && q.ordering.length === answerLabels.length
+          ? q.ordering
+          : [...answerLabels];
+        ordering.forEach((letter, idx) => {
+          const select = document.getElementById(`ordering-${idx}`);
+          if (select) {
+            select.value = letter;
+          }
+        });
+      }
+      setImagePreview(q.imageDataUrl || null);
+      el.saveQuestionBtn.textContent = "Uložiť zmeny otázky";
+      updateSaveButtonState();
+      switchTab("tab-create");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function deleteQuestion(questionId) {
+      const q = state.questions.find((item) => item.id === questionId);
+      if (!q) {
+        return;
+      }
+      if (!confirm("Naozaj chcete zmazať túto otázku?")) {
+        return;
+      }
+      state.questions = state.questions.filter((item) => item.id !== questionId);
+      markUnsavedChanges();
+      persistState();
+    }
+
+    function formatDate(iso) {
+      if (!iso) {
+        return "-";
+      }
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString("sk-SK");
+    }
+
+    function buildQuestionTags(categoryName, typeLabel, pointsLabel) {
+      const entries = [
+        { key: "category", value: categoryName },
+        { key: "type", value: typeLabel },
+        { key: "points", value: pointsLabel }
+      ];
+      const totalLength = entries.reduce((sum, item) => sum + item.value.length, 0);
+
+      const order = totalLength > 30
+        ? ["category", "points", "type"]
+        : ["category", "type", "points"];
+
+      return order
+        .map((key) => entries.find((item) => item.key === key))
+        .filter(Boolean)
+        .map((item) => `<span class="tag">${escapeHtml(item.value)}</span>`)
+        .join("");
+    }
+
+    function renderQuestions() {
+      const categoryFilter = el.filterCategory.value || "all";
+      const query = el.searchBox.value.trim().toLowerCase();
+      const filtered = state.questions.filter((q) => {
+        const categoryOk = categoryFilter === "all" || q.categoryId === categoryFilter;
+        if (!categoryOk) {
+          return false;
+        }
+        if (!query) {
+          return true;
+        }
+        const inQuestion = q.text.toLowerCase().includes(query);
+        const inAnswers = q.answers.some((a) => a.text.toLowerCase().includes(query));
+        return inQuestion || inAnswers;
+      });
+
+      if (!filtered.length) {
+        el.questionsContainer.innerHTML = "<p class='muted'>Nenašli sa žiadne otázky podľa filtra.</p>";
+        return;
+      }
+
+      el.questionsContainer.innerHTML = filtered.map((q) => {
+        const category = getCategoryById(q.categoryId);
+        const isExpanded = state.expandedQuestionIds.has(q.id);
+        const qType = ["single", "multiple", "ordering"].includes(q.answerType)
+          ? q.answerType
+          : (q.allowMultiple ? "multiple" : "single");
+        const typeLabel = qType === "ordering"
+          ? "Zoradenie"
+          : (qType === "multiple" ? "Viac správnych" : "Jedna správna");
+        const pointsLabel = `${q.points} bod${q.points === 1 ? "" : "ov"}`;
+        const tags = buildQuestionTags(
+          category ? category.name : MIX_CATEGORY.name,
+          typeLabel,
+          pointsLabel
+        );
+
+        const answersHtml = q.answers.map((a) => {
+          const isCorrect = qType !== "ordering" && a.correct;
+          return `<li class="${isCorrect ? "correct" : ""}">${escapeHtml(a.id)}: ${escapeHtml(a.text)}${isCorrect ? " (správna)" : ""}</li>`;
+        }).join("");
+
+        const orderingHtml = qType === "ordering"
+          ? `<div class="muted"><strong>Správne poradie:</strong> ${escapeHtml((q.ordering || []).join(" -> "))}</div>`
+          : "";
+
+        const imageHtml = q.imageDataUrl
+          ? `<button type="button" class="question-image-open" data-action="preview-image" data-src="${q.imageDataUrl}" aria-label="Zobraziť obrázok v plnej veľkosti"><img class="question-image" src="${q.imageDataUrl}" alt="Obrázok otázky"></button>`
+          : "";
+        const arrow = isExpanded ? "▾" : "▸";
+        const expandedState = isExpanded ? "true" : "false";
+
+        return `
+          <article class="question-card ${isExpanded ? "expanded" : ""} ${q.imageDataUrl ? "with-image" : ""}">
+            <div class="question-summary" data-action="toggle-expand" data-id="${q.id}" role="button" tabindex="0" aria-expanded="${expandedState}">
+              <strong class="question-title">${escapeHtml(q.text)}</strong>
+              <div class="question-tags">${tags}</div>
+              <button type="button" class="toggle-expand" data-action="toggle-expand" data-id="${q.id}" aria-expanded="${expandedState}" aria-label="Rozbaliť detaily otázky">${arrow}</button>
+            </div>
+            <div class="question-details">
+              <div class="question-details-layout">
+                <div class="question-main">
+                  <ol class="answers-list">${answersHtml}</ol>
+                  ${orderingHtml}
+                </div>
+                <div class="question-actions">
+                  <button type="button" class="btn-secondary" data-action="edit-question" data-id="${q.id}">Upraviť</button>
+                  <button type="button" class="btn-secondary" data-action="toggle-shuffle" data-id="${q.id}">Zamiešať</button>
+                  <button type="button" class="btn-danger" data-action="delete-question" data-id="${q.id}">Zmazať</button>
+                </div>
+                <div class="question-image-wrap">${imageHtml}</div>
+                <div class="muted question-meta">Posledná zmena: ${formatDate(q.lastModified)}</div>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderCategoriesManager() {
+      const sorted = [...state.categories].sort((a, b) => a.name.localeCompare(b.name, "sk"));
+      el.categoriesContainer.innerHTML = sorted.map((c) => {
+        const count = state.questions.filter((q) => q.categoryId === c.id).length;
+        const canDelete = c.id !== MIX_CATEGORY_ID;
+        return `
+          <div class="category-item">
+            <div>
+              <strong>${escapeHtml(c.name)}</strong>
+              <span class="muted">(${count} otázok)</span>
+            </div>
+            <div>
+              ${canDelete ? `<button type=\"button\" class=\"btn-danger\" data-action=\"delete-category\" data-id=\"${c.id}\">Zmazať kategóriu</button>` : "<span class='muted'>Predvolená</span>"}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function refreshUI() {
+      updateCategorySelects();
+      renderQuestions();
+      renderCategoriesManager();
+      el.quickStats.textContent = `Otázky: ${state.questions.length} | Kategórie: ${state.categories.length}`;
+      el.jsonVersion.textContent = `JSON verzia: ${state.version}`;
+    }
+
+    function switchTab(tabId) {
+      el.tabCreate.classList.toggle("hidden", tabId !== "tab-create");
+      el.tabManage.classList.toggle("hidden", tabId !== "tab-manage");
+      el.tabs.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tabId));
+    }
+
+    function openCategoryDeleteModal(categoryId) {
+      state.pendingCategoryDeleteId = categoryId;
+      const c = getCategoryById(categoryId);
+      const count = state.questions.filter((q) => q.categoryId === categoryId).length;
+      el.categoryModalText.textContent = `Kategória "${c ? c.name : "?"}" obsahuje ${count} otázok. Vyberte, čo sa má stať s otázkami.`;
+      el.categoryModalBackdrop.style.display = "flex";
+    }
+
+    function closeCategoryDeleteModal() {
+      state.pendingCategoryDeleteId = null;
+      el.categoryModalBackdrop.style.display = "none";
+    }
+
+    function deleteCategory(deleteQuestions) {
+      const categoryId = state.pendingCategoryDeleteId;
+      const category = getCategoryById(categoryId);
+      if (!category || category.id === MIX_CATEGORY_ID) {
+        closeCategoryDeleteModal();
+        return;
+      }
+
+      if (deleteQuestions) {
+        state.questions = state.questions.filter((q) => q.categoryId !== categoryId);
+      } else {
+        state.questions = state.questions.map((q) => q.categoryId === categoryId ? { ...q, categoryId: MIX_CATEGORY_ID, lastModified: new Date().toISOString() } : q);
+      }
+
+      state.categories = state.categories.filter((c) => c.id !== categoryId);
+      closeCategoryDeleteModal();
+      markUnsavedChanges();
+      persistState();
+    }
+
+    function openImageModal(src) {
+      if (!src) {
+        return;
+      }
+      el.imageModalImage.src = src;
+      el.imageModalBackdrop.style.display = "flex";
+    }
+
+    function closeImageModal() {
+      el.imageModalBackdrop.style.display = "none";
+      el.imageModalImage.removeAttribute("src");
+    }
+
+    function downloadJson() {
+      try {
+        state.updatedAt = new Date().toISOString();
+        const json = JSON.stringify(getDataForStorage(), null, 2);
+        localStorage.setItem(STORAGE_KEY, json);
+        refreshUI();
+
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "kviz-data.json";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        markSavedToJson();
+      } catch (err) {
+        setSaveState(`Chyba pri ukladaní JSON: ${err.message}`, false);
+      }
+    }
+
+    function importJsonFile(file) {
+      const fr = new FileReader();
+      fr.onload = async () => {
+        try {
+          const parsed = JSON.parse(String(fr.result));
+          warnIfVersionMismatch(parsed, "importovaný súbor");
+          const hasCurrentData = state.questions.length > 0 || state.categories.length > 1;
+          if (hasCurrentData) {
+            const mode = chooseImportMode();
+            if (!mode) {
+              return;
+            }
+            if (mode === "replace") {
+              applyLoadedData(parsed);
+            }
+            if (mode === "merge") {
+              mergeLoadedData(parsed);
+            }
+          } else {
+            applyLoadedData(parsed);
+          }
+          await persistState();
+          resetForm();
+          markSavedToJson();
+          alert("JSON bol úspešne načítaný.");
+        } catch (err) {
+          alert(`Neplatný JSON: ${err.message}`);
+        }
+      };
+      fr.onerror = () => alert("Nepodarilo sa načítať súbor.");
+      fr.readAsText(file, "utf-8");
+    }
+
+    async function handleQuestionSubmit(event) {
+      event.preventDefault();
+      const mode = getSelectedMode();
+      const answers = collectAnswers();
+      const ordering = mode === "ordering" ? getOrderingFromInputs() : [];
+      const err = validateQuestion(answers, mode, ordering);
+      if (err) {
+        alert(err);
+        return;
+      }
+
+      const categoryId = upsertCategory();
+      const nowIso = new Date().toISOString();
+      const imageFile = el.imageInput.files[0];
+      let currentImageDataUrl = el.imagePreview.classList.contains("show") ? el.imagePreview.src : null;
+      let imageName = null;
+
+      if (imageFile) {
+        if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+          alert("Obrázok je príliš veľký. Maximálna veľkosť je 512 KB.");
+          return;
+        }
+        currentImageDataUrl = await readImageAsDataUrl(imageFile);
+        imageName = imageFile.name;
+      }
+
+      const payload = {
+        text: el.questionText.value.trim(),
+        answerType: mode,
+        allowMultiple: mode === "multiple",
+        answers: mode === "ordering" ? answers.map((a) => ({ ...a, correct: false })) : answers,
+        ordering,
+        points: Math.min(5, Math.max(1, Number.parseInt(el.points.value, 10) || 1)),
+        categoryId,
+        imageDataUrl: currentImageDataUrl,
+        imageName,
+        lastModified: nowIso
+      };
+
+      const arrangedPayload = applyAnswerArrangement(
+        payload.answers,
+        payload.answerType,
+        payload.ordering,
+        el.shuffleAnswers.checked
+      );
+      payload.answers = arrangedPayload.answers;
+      payload.ordering = arrangedPayload.ordering;
+
+      if (state.editingQuestionId) {
+        state.questions = state.questions.map((q) => {
+          if (q.id !== state.editingQuestionId) {
+            return q;
+          }
+          return {
+            ...q,
+            ...payload,
+            imageName: imageName || q.imageName || null
+          };
+        });
+      } else {
+        state.questions.unshift({
+          id: makeUuid(),
+          createdAt: nowIso,
+          ...payload
+        });
+      }
+
+      markUnsavedChanges();
+      await persistState();
+      resetForm();
+      switchTab("tab-manage");
+    }
+
+    function wireEvents() {
+      el.tabs.forEach((btn) => {
+        btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+      });
+
+      document.addEventListener("change", (event) => {
+        if (event.target && event.target.matches("input[name='mode']")) {
+          markUnsavedChanges();
+          renderAnswerInputs();
+          updateSaveButtonState();
+        }
+      });
+
+      el.questionForm.addEventListener("input", () => {
+        markUnsavedChanges();
+        updateSaveButtonState();
+      });
+
+      el.questionForm.addEventListener("change", () => {
+        if (el.points.value !== "") {
+          const normalized = Math.min(5, Math.max(1, Math.round(Number(el.points.value) || 1)));
+          el.points.value = String(normalized);
+        }
+        markUnsavedChanges();
+        updateSaveButtonState();
+      });
+
+      el.questionForm.addEventListener("submit", handleQuestionSubmit);
+
+      el.removeImageBtn.addEventListener("click", () => {
+        el.imageInput.value = "";
+        setImagePreview(null);
+        markUnsavedChanges();
+        updateSaveButtonState();
+      });
+
+      el.imageInput.addEventListener("change", async () => {
+        const file = el.imageInput.files[0];
+        if (!file) {
+          setImagePreview(null);
+          return;
+        }
+        if (file.size > MAX_IMAGE_SIZE_BYTES) {
+          alert("Obrázok je príliš veľký. Maximálna veľkosť je 512 KB.");
+          el.imageInput.value = "";
+          setImagePreview(null);
+          updateSaveButtonState();
+          return;
+        }
+        try {
+          const dataUrl = await readImageAsDataUrl(file);
+          setImagePreview(dataUrl);
+          markUnsavedChanges();
+          updateSaveButtonState();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+
+      el.filterCategory.addEventListener("change", renderQuestions);
+      el.searchBox.addEventListener("input", renderQuestions);
+
+      el.questionsContainer.addEventListener("click", (event) => {
+        const actionEl = event.target.closest("[data-action]");
+        if (!actionEl) {
+          return;
+        }
+        const action = actionEl.dataset.action;
+        const id = actionEl.dataset.id;
+
+        if (action === "edit-question") {
+          loadQuestionToForm(id);
+        }
+
+        if (action === "toggle-expand") {
+          if (state.expandedQuestionIds.has(id)) {
+            state.expandedQuestionIds.delete(id);
+          } else {
+            state.expandedQuestionIds.add(id);
+          }
+          renderQuestions();
+        }
+
+        if (action === "preview-image") {
+          openImageModal(actionEl.dataset.src);
+        }
+
+        if (action === "toggle-shuffle") {
+          state.questions = state.questions.map((q) => {
+            if (q.id !== id) {
+              return q;
+            }
+            const arranged = applyAnswerArrangement(
+              q.answers,
+              q.answerType,
+              Array.isArray(q.ordering) ? q.ordering : [],
+              true
+            );
+            return {
+              ...q,
+              answers: arranged.answers,
+              ordering: arranged.ordering,
+              lastModified: new Date().toISOString()
+            };
+          });
+          markUnsavedChanges();
+          persistState();
+        }
+
+        if (action === "delete-question") {
+          deleteQuestion(id);
+        }
+      });
+
+      el.categoriesContainer.addEventListener("click", (event) => {
+        const btn = event.target.closest("button[data-action='delete-category']");
+        if (!btn) {
+          return;
+        }
+        openCategoryDeleteModal(btn.dataset.id);
+      });
+
+      el.cancelCategoryDelete.addEventListener("click", closeCategoryDeleteModal);
+      el.deleteCategoryWithQuestions.addEventListener("click", () => deleteCategory(true));
+      el.moveCategoryToMix.addEventListener("click", () => deleteCategory(false));
+      el.categoryModalBackdrop.addEventListener("click", (event) => {
+        if (event.target === el.categoryModalBackdrop) {
+          closeCategoryDeleteModal();
+        }
+      });
+
+      el.imageModalClose.addEventListener("click", closeImageModal);
+      el.imageModalBackdrop.addEventListener("click", (event) => {
+        if (event.target === el.imageModalBackdrop) {
+          closeImageModal();
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && el.imageModalBackdrop.style.display === "flex") {
+          closeImageModal();
+        }
+      });
+
+      el.headerSaveBtn.addEventListener("click", downloadJson);
+      el.headerImportInput.addEventListener("change", () => {
+        const file = el.headerImportInput.files[0];
+        if (file && state.hasUnsavedChanges) {
+          const shouldContinue = confirm("Máte neuložené zmeny. Pokračovať v načítaní JSON a prepísať aktuálny stav?");
+          if (!shouldContinue) {
+            el.headerImportInput.value = "";
+            return;
+          }
+        }
+        if (file) {
+          importJsonFile(file);
+        }
+        el.headerImportInput.value = "";
+      });
+
+      window.addEventListener("beforeunload", (event) => {
+        if (!state.hasUnsavedChanges) {
+          return;
+        }
+        event.preventDefault();
+        event.returnValue = "";
+      });
+    }
+
+    function loadInitialData() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        refreshUI();
+        setSaveState("Pripravené", true);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        warnIfVersionMismatch(parsed, "lokálne uložené dáta");
+        applyLoadedData(parsed);
+        refreshUI();
+        state.hasUnsavedChanges = false;
+        setSaveState(`Načítané: ${formatDate(state.updatedAt)}`, true);
+      } catch (err) {
+        console.error(err);
+        setSaveState("Nepodarilo sa načítať uložené dáta", false);
+      }
+    }
+
+    function init() {
+      renderAnswerInputs();
+      updateCategorySelects();
+      wireEvents();
+      loadInitialData();
+      el.categorySelect.value = MIX_CATEGORY_ID;
+      updateSaveButtonState();
+    }
+
+    init();
+  </script>
+</body>
+</html>
