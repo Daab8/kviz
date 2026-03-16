@@ -274,6 +274,13 @@
       filter: none;
     }
 
+    .btn-soft-disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      filter: none;
+    }
+
     .status-box {
       background: #f8fafc;
       border: 1px dashed #bfdbfe;
@@ -671,6 +678,121 @@
 
       .answer-row {
         grid-template-columns: auto 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .shell {
+        padding: 0.75rem;
+      }
+
+      h1 {
+        font-size: 1rem;
+      }
+
+      .title-row {
+        align-items: flex-start;
+      }
+
+      .tabs-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.6rem;
+      }
+
+      .tabs,
+      .header-actions {
+        width: 100%;
+        margin-top: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .tab-btn,
+      .header-actions .pseudo-btn,
+      .header-actions button {
+        width: 100%;
+        text-align: center;
+      }
+
+      main {
+        margin-top: 0.75rem;
+        padding: 0 0.7rem 1rem;
+      }
+
+      .panel {
+        padding: 1rem;
+      }
+
+      .mode-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.45rem;
+      }
+
+      .mode-row label {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-bottom: 0;
+      }
+
+      .points-field {
+        justify-self: stretch;
+        width: 100%;
+      }
+
+      #points {
+        width: 100%;
+        min-width: 0;
+        margin-left: 0;
+        text-align: left;
+      }
+
+      .label-row {
+        align-items: flex-start;
+      }
+
+      .image-actions-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .save-right {
+        grid-column: 1 / -1;
+        margin-left: 0;
+        width: 100%;
+      }
+
+      .answer-row {
+        row-gap: 0.4rem;
+      }
+
+      .answer-row input[type="radio"],
+      .answer-row input[type="checkbox"] {
+        grid-column: 1 / -1;
+        justify-self: start;
+      }
+
+      .question-summary {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          "title title"
+          "tags toggle";
+        align-items: center;
+      }
+
+      .question-title {
+        grid-area: title;
+      }
+
+      .question-tags {
+        grid-area: tags;
+      }
+
+      .toggle-expand {
+        grid-area: toggle;
+        justify-self: end;
       }
     }
   </style>
@@ -1274,6 +1396,11 @@
       return answers;
     }
 
+    function hasDuplicateAnswers(answers) {
+      const normalized = answers.map((a) => a.text.trim().toLowerCase());
+      return new Set(normalized).size !== normalized.length;
+    }
+
     function isQuestionFormValid() {
       if (!el.questionText.value.trim()) {
         return false;
@@ -1286,6 +1413,9 @@
 
       const answers = collectAnswers();
       if (answers.some((a) => !a.text)) {
+        return false;
+      }
+      if (hasDuplicateAnswers(answers)) {
         return false;
       }
 
@@ -1309,7 +1439,20 @@
     }
 
     function updateSaveButtonState() {
-      el.saveQuestionBtn.disabled = !isQuestionFormValid();
+      const answers = collectAnswers();
+      const mode = getSelectedMode();
+      const ordering = mode === "ordering" ? getOrderingFromInputs() : [];
+      const err = validateQuestion(answers, mode, ordering);
+
+      if (err) {
+        el.saveQuestionBtn.classList.add("btn-soft-disabled");
+        el.saveQuestionBtn.setAttribute("aria-disabled", "true");
+        el.saveQuestionBtn.title = err;
+      } else {
+        el.saveQuestionBtn.classList.remove("btn-soft-disabled");
+        el.saveQuestionBtn.removeAttribute("aria-disabled");
+        el.saveQuestionBtn.removeAttribute("title");
+      }
     }
 
     function validateQuestion(answers, mode, ordering) {
@@ -1318,6 +1461,9 @@
       }
       if (answers.some((a) => !a.text)) {
         return "Vyplňte všetky odpovede.";
+      }
+      if (hasDuplicateAnswers(answers)) {
+        return "Odpovede musia byť unikátne. Zmeňte duplicitné odpovede.";
       }
 
       if (mode === "ordering") {
