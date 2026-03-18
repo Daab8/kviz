@@ -1188,6 +1188,11 @@
           <textarea id="questionText" maxlength="200" required placeholder="Sem napíšte znenie otázky..."></textarea>
         </div>
 
+        <div class="field">
+          <label for="questionDescription">Popis k otázke (voliteľné)</label>
+          <textarea id="questionDescription" maxlength="500" placeholder="Voliteľný doplňujúci popis alebo zaujímavosť. Zobrazí sa pri zobrazení správnej odpovede."></textarea>
+        </div>
+
         <div class="inline-grid two">
           <div class="field">
             <label>Typ správnej odpovede</label>
@@ -1379,6 +1384,7 @@
       shuffleAnswers: document.getElementById("shuffleAnswers"),
       questionForm: document.getElementById("questionForm"),
       questionText: document.getElementById("questionText"),
+      questionDescription: document.getElementById("questionDescription"),
       points: document.getElementById("points"),
       categorySelect: document.getElementById("categorySelect"),
       newCategory: document.getElementById("newCategory"),
@@ -1517,6 +1523,7 @@
         q.answerType = ["single", "multiple", "ordering"].includes(q.answerType)
           ? q.answerType
           : (q.allowMultiple ? "multiple" : "single");
+        q.description = String(q.description || "").trim().slice(0, 500);
         q.answers = Array.isArray(q.answers) ? q.answers : [];
         q.ordering = q.answerType === "ordering" && Array.isArray(q.ordering)
           ? q.ordering.filter((id) => answerLabels.includes(id)).slice(0, answerLabels.length)
@@ -1875,6 +1882,7 @@
           .join("|");
         return [
           normalizeText(question.text),
+          normalizeText(question.description || ""),
           qType,
           normalizeCategoryName(categoryName),
           String(question.points || 1),
@@ -1890,6 +1898,7 @@
 
       return [
         normalizeText(question.text),
+        normalizeText(question.description || ""),
         qType,
         normalizeCategoryName(categoryName),
         String(question.points || 1),
@@ -2322,6 +2331,7 @@
     function resetForm() {
       state.editingQuestionId = null;
       el.questionForm.reset();
+      el.questionDescription.value = "";
       el.points.value = "1";
       document.querySelector("input[name='mode'][value='single']").checked = true;
       renderAnswerInputs();
@@ -2342,6 +2352,7 @@
       }
       state.editingQuestionId = q.id;
       el.questionText.value = q.text;
+      el.questionDescription.value = String(q.description || "");
       el.points.value = String(q.points || 1);
       el.categorySelect.value = q.categoryId;
       el.newCategory.value = "";
@@ -2434,8 +2445,9 @@
           return true;
         }
         const inQuestion = q.text.toLowerCase().includes(query);
+        const inDescription = String(q.description || "").toLowerCase().includes(query);
         const inAnswers = q.answers.some((a) => a.text.toLowerCase().includes(query));
-        return inQuestion || inAnswers;
+        return inQuestion || inDescription || inAnswers;
       });
 
       if (!filtered.length) {
@@ -2468,6 +2480,10 @@
           ? `<div class="muted"><strong>Správne poradie:</strong> ${escapeHtml((q.ordering || []).join(" -> "))}</div>`
           : "";
 
+        const descriptionHtml = q.description
+          ? `<div class="muted"><strong>Popis:</strong> ${escapeHtml(q.description)}</div>`
+          : "";
+
         const imageHtml = q.imageDataUrl
           ? `<button type="button" class="question-image-open" data-action="preview-image" data-src="${q.imageDataUrl}" aria-label="Zobraziť obrázok v plnej veľkosti"><img class="question-image" src="${q.imageDataUrl}" alt="Obrázok otázky"></button>`
           : "";
@@ -2485,6 +2501,7 @@
               <div class="question-details-layout">
                 <div class="question-main">
                   <ol class="answers-list">${answersHtml}</ol>
+                  ${descriptionHtml}
                   ${orderingHtml}
                 </div>
                 <div class="question-actions">
@@ -2688,6 +2705,7 @@
 
       const payload = {
         text: el.questionText.value.trim(),
+        description: el.questionDescription.value.trim().slice(0, 500),
         answerType: mode,
         allowMultiple: mode === "multiple",
         answers: mode === "ordering" ? answers.map((a) => ({ ...a, correct: false })) : answers,
