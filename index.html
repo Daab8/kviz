@@ -426,6 +426,18 @@
       margin-top: 0.2rem;
     }
 
+    .order-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .order-actions {
+      display: inline-flex;
+      gap: 0.35rem;
+    }
+
     .quiz-summary {
       font-size: 0.9rem;
       color: var(--muted);
@@ -1320,6 +1332,11 @@
           <div id="quizQuestionsPicker" class="picker-list"></div>
         </div>
 
+        <div class="picker-box">
+          <h3 class="picker-title">Poradie otázok v kvíze</h3>
+          <div id="quizQuestionOrderList" class="picker-list"></div>
+        </div>
+
         <div class="status-box">
           <strong>Súhrn výberu</strong>
           <p id="quizSelectionSummary" class="quiz-summary">Vybrané kategórie: 0 | Individuálne otázky: 0 | Celkom v kvíze: 0</p>
@@ -1369,6 +1386,7 @@
       hasUnsavedChanges: false,
       editingQuestionId: null,
       editingQuizId: null,
+      quizQuestionOrderDraft: [],
       pendingCategoryDeleteId: null,
       expandedQuestionIds: new Set()
     };
@@ -1417,6 +1435,7 @@
       quizSearchBox: document.getElementById("quizSearchBox"),
       quizCategoriesPicker: document.getElementById("quizCategoriesPicker"),
       quizQuestionsPicker: document.getElementById("quizQuestionsPicker"),
+      quizQuestionOrderList: document.getElementById("quizQuestionOrderList"),
       quizSelectionSummary: document.getElementById("quizSelectionSummary"),
       saveQuizBtn: document.getElementById("saveQuizBtn"),
       toggleAllQuizCategories: document.getElementById("toggleAllQuizCategories"),
@@ -1607,9 +1626,72 @@
     function getQuizSelectionsFromForm() {
       const selectedCategoryIds = [...el.quizCategoriesPicker.querySelectorAll("input[type='checkbox'][data-kind='category']:checked")]
         .map((c) => c.value);
-      const selectedQuestionIds = [...el.quizQuestionsPicker.querySelectorAll("input[type='checkbox'][data-kind='question']:checked")]
-        .map((c) => c.value);
+      const selectedQuestionIds = getSelectedQuestionIdsFromPicker();
       return { selectedCategoryIds, selectedQuestionIds };
+    }
+
+    function getSelectedQuestionIdsFromPicker() {
+      return [...el.quizQuestionsPicker.querySelectorAll("input[type='checkbox'][data-kind='question']:checked")]
+        .map((c) => c.value);
+    }
+
+    function syncQuizQuestionOrderWithSelection(selectedQuestionIds) {
+      const selectedSet = new Set(selectedQuestionIds || []);
+      const existingQuestionIds = new Set(state.questions.map((q) => q.id));
+      const next = [];
+
+      for (const id of state.quizQuestionOrderDraft || []) {
+        if (!selectedSet.has(id) || !existingQuestionIds.has(id) || next.includes(id)) {
+          continue;
+        }
+        next.push(id);
+      }
+
+      for (const id of selectedQuestionIds || []) {
+        if (!existingQuestionIds.has(id) || next.includes(id)) {
+          continue;
+        }
+        next.push(id);
+      }
+
+      state.quizQuestionOrderDraft = next;
+    }
+
+    function renderQuizQuestionOrderList() {
+      if (!el.quizQuestionOrderList) return;
+
+      if (!state.quizQuestionOrderDraft.length) {
+        el.quizQuestionOrderList.innerHTML = "<p class='muted'>Poradie sa nastavuje pre individuálne vybrané otázky.</p>";
+        return;
+      }
+
+      el.quizQuestionOrderList.innerHTML = state.quizQuestionOrderDraft.map((id, idx) => {
+        const q = state.questions.find((item) => item.id === id);
+        if (!q) return "";
+        return `
+          <div class="picker-item order-row">
+            <span><strong>${idx + 1}.</strong> ${escapeHtml(q.text)}</span>
+            <span class="order-actions">
+              <button type="button" class="btn-secondary" data-action="order-question" data-dir="up" data-id="${id}" ${idx === 0 ? "disabled" : ""}>↑</button>
+              <button type="button" class="btn-secondary" data-action="order-question" data-dir="down" data-id="${id}" ${idx === state.quizQuestionOrderDraft.length - 1 ? "disabled" : ""}>↓</button>
+            </span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function moveQuestionOrder(id, dir) {
+      const index = state.quizQuestionOrderDraft.indexOf(id);
+      if (index < 0) return;
+
+      const target = dir === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= state.quizQuestionOrderDraft.length) return;
+
+      const arr = [...state.quizQuestionOrderDraft];
+      [arr[index], arr[target]] = [arr[target], arr[index]];
+      state.quizQuestionOrderDraft = arr;
+      renderQuizQuestionOrderList();
+      markUnsavedChanges();
     }
 
     function updateQuizSelectionSummary() {
@@ -1633,9 +1715,12 @@
     }
 
     function updateQuizSelectionUiState() {
+      const selectedQuestionIds = getSelectedQuestionIdsFromPicker();
+      syncQuizQuestionOrderWithSelection(selectedQuestionIds);
       updateQuizSelectionSummary();
       updateQuizCategoryToggleState();
       updateQuizQuestionToggleState();
+      renderQuizQuestionOrderList();
     }
 
     function renderQuizPickers(preserveCurrentSelection = true) {
@@ -1714,6 +1799,7 @@
 
     function resetQuizForm() {
       state.editingQuizId = null;
+      state.quizQuestionOrderDraft = [];
       el.quizName.value = "";
       el.quizDescription.value = "";
       el.saveQuizBtn.textContent = "Uložiť kvíz";
@@ -1726,6 +1812,9 @@
         return;
       }
       state.editingQuizId = quiz.id;
+      state.quizQuestionOrderDraft = Array.isArray(quiz.selectedQuestionIds)
+        ? quiz.selectedQuestionIds.filter((id) => state.questions.some((q) => q.id === id))
+        : [];
       el.quizName.value = quiz.name;
       el.quizDescription.value = quiz.description || "";
       el.saveQuizBtn.textContent = "Uložiť zmeny kvízu";
@@ -1739,7 +1828,7 @@
       return [
         normalizeText(quiz.name),
         [...(quiz.selectedCategoryIds || [])].sort().join("|"),
-        [...(quiz.selectedQuestionIds || [])].sort().join("|")
+        [...(quiz.selectedQuestionIds || [])].join("|")
       ].join("||");
     }
 
@@ -1800,6 +1889,7 @@
       }
 
       const { selectedCategoryIds, selectedQuestionIds } = getQuizSelectionsFromForm();
+      const orderedQuestionIds = (state.quizQuestionOrderDraft || []).filter((id) => selectedQuestionIds.includes(id));
       const total = getQuizQuestionPool(selectedCategoryIds, selectedQuestionIds).length;
       if (total < 1) {
         alert("Vyberte aspoň 1 otázku alebo 1 kategóriu.");
@@ -1817,7 +1907,7 @@
             name,
             description: el.quizDescription.value.trim().slice(0, 200),
             selectedCategoryIds,
-            selectedQuestionIds,
+            selectedQuestionIds: orderedQuestionIds,
             lastModified: nowIso
           };
         });
@@ -1827,7 +1917,7 @@
           name,
           description: el.quizDescription.value.trim().slice(0, 200),
           selectedCategoryIds,
-          selectedQuestionIds,
+          selectedQuestionIds: orderedQuestionIds,
           createdAt: nowIso,
           lastModified: nowIso
         });
@@ -2878,6 +2968,11 @@
 
       el.quizCategoriesPicker.addEventListener("change", updateQuizSelectionUiState);
       el.quizQuestionsPicker.addEventListener("change", updateQuizSelectionUiState);
+      el.quizQuestionOrderList.addEventListener("click", (event) => {
+        const btn = event.target.closest("button[data-action='order-question']");
+        if (!btn) return;
+        moveQuestionOrder(btn.dataset.id, btn.dataset.dir);
+      });
       el.saveQuizBtn.addEventListener("click", saveQuizFromForm);
       el.openQuizBuilderBtn.addEventListener("click", () => {
         resetQuizForm();
