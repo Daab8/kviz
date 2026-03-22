@@ -11,10 +11,10 @@
   },
   "dependencies": {
     "aedes": "^1.0.1",
-    "express": "^4.21.2",
+    "express": "^5.2.1",
     "mqtt": "^5.15.0",
-    "websocket-stream": "^5.5.2",
-    "ws": "^8.18.3"
+    "websocket-stream": "5.5.2",
+    "ws": "^8.20.0"
   },
   "devDependencies": {}
 }
