@@ -1,0 +1,191 @@
+AI Quiz JSON Generation Guide
+
+Purpose
+This file instructs an AI how to generate a quiz in the JSON format expected by this quiz system. It lists all supported question types, fields, validation rules, good practices, and sample JSON. Use this as the canonical reference when generating quizzes.
+
+High-level structure (root JSON)
+- The backend accepts a payload containing arrays: `questions`, `quizzes`, and `categories`. The minimal payload must include these three arrays (they may be empty if not used). Example wrapper:
+
+{
+  "version": "1.0.0",
+  "categories": [ /* optional category objects */ ],
+  "questions": [ /* question objects (see below) */ ],
+  "quizzes": [ /* quiz definitions: which questions belong to which quiz */ ]
+}
+
+Questions array: question object schema (complete)
+- `id` (string, required): unique identifier for the question (example: "q-0001" or "Q1"). Keep IDs stable and unique across the file.
+- `text` (string, required): the question text.
+- `description` (string, optional): additional explanatory text to show when revealing answers (longer explanation).
+- `answerType` (string, required): one of `single`, `multiple`, or `ordering`.
+  - `single`: exactly one correct answer.
+  - `multiple`: multiple answers may be correct (scoring policy: exact-match by default).
+  - `ordering`: answers should be ordered; `ordering` field below defines the correct order.
+- `points` (integer, optional): 1..5 — difficulty/weight. Default 1. Use 1 (easy) to 5 (very hard).
+- `answers` (array of objects, required for `single` and `multiple`, recommended for `ordering`): each answer object:
+    - `id` (string, required): short label for answer, typically single uppercase letter `A`, `B`, `C`, ... (the system normalizes to uppercase). Use unique IDs per question.
+    - `text` (string, required): answer text.
+    - `explanation` (string, optional): explanation for this answer (shown on reveal if desired).
+    - `imageDataUrl` or `imageUrl` (optional): if answer uses an image; prefer `imageDataUrl` for embedded images (data URL), `imageUrl` for external URLs.
+    - `correct` (boolean, optional in source): optional author annotation for correct answers. For `single` set exactly one `correct: true`; for `multiple` set all correct items; for `ordering` omit or set on items (system reads `ordering` instead).
+- `ordering` (array of answer ids, required for `ordering` questions): an ordered list of answer `id`s representing correct order.
+- `imageDataUrl` or `imageUrl` (optional): question-level image.
+- `tags` (array of strings, optional): topic tags.
+- `shuffleAnswers` (boolean, optional): whether to shuffle answers for presentation. Defaults to true.
+- `meta` (object, optional): any other metadata (author, createdAt, difficultyReason, source, license).
+
+Quizzes array: how to build a quiz (object schema)
+- `id` (string): quiz id
+- `name` (string): human-friendly quiz name
+- `selectedQuestionIds` (array): optionally list of question ids to include
+- `selectedCategoryIds` (array): optional category filter
+- `orderedQuestionIds` (array): optional custom ordering
+
+Categories array (optional)
+- `id`, `name`, `description`
+
+Examples (questions)
+1) Single-answer question
+{
+  "id": "q-001",
+  "text": "Which planet is known as the Red Planet?",
+  "answerType": "single",
+  "points": 1,
+  "answers": [
+    {"id":"A","text":"Venus"},
+    {"id":"B","text":"Mars","correct":true},
+    {"id":"C","text":"Jupiter"},
+    {"id":"D","text":"Saturn"}
+  ],
+  "description": "Mars is called the Red Planet because of iron oxide on its surface."
+}
+
+2) Multiple-answer question
+{
+  "id":"q-010",
+  "text":"Select all prime numbers",
+  "answerType":"multiple",
+  "points":2,
+  "answers":[
+    {"id":"A","text":"2","correct":true},
+    {"id":"B","text":"3","correct":true},
+    {"id":"C","text":"4"},
+    {"id":"D","text":"5","correct":true}
+  ],
+  "description":"2,3,5 are prime; 4 is composite. Use exact-match scoring unless a custom scoring policy is applied."
+}
+
+3) Ordering question
+{
+  "id":"q-020",
+  "text":"Order these historical events from earliest to latest",
+  "answerType":"ordering",
+  "points":3,
+  "answers":[
+    {"id":"A","text":"Fall of Constantinople"},
+    {"id":"B","text":"Discovery of America"},
+    {"id":"C","text":"Start of World War I"}
+  ],
+  "ordering":["A","B","C"],
+  "description":"Const. fell 1453, Columbus 1492, WWI started 1914." 
+}
+
+Important generation rules for AI (validation + anti-hinting)
+1) IDs and labels
+- Use short uppercase IDs `A..Z` that are unique per question.
+- `ordering` arrays must reference those exact IDs.
+
+2) Avoid answer leakage/hints
+- Do not include data in answer choices that directly reveal the order or correct answer. Examples to avoid:
+  - For ordering tasks, do NOT include chronological years or ordinal numbers in answer texts unless the year is part of the question and required. If the task asks to order events, answers should not include their years in parentheses (e.g., avoid "Battle of X (1944)") because that gives the answer away. Instead include neutral wording and put years in the `description` if needed.
+  - Do not repeat unique keywords of the question in a single answer that would reveal the correct match.
+  - Avoid answer option phrasing that includes definitive words used in question text that would point to a single choice.
+- AI must detect and rewrite answers that would leak the solution. If a candidate answer contains an explicit timestamp, number, or clearly unique identifier that reveals order/correctness, modify the answer alternatives to remove the explicit hint while preserving correctness.
+
+3) Plausible distractors
+- For single/multiple choice, produce plausible distractors: same category / similar length / similar phrasing. Avoid obviously wrong items (unless intentionally easy). Keep distractors grammatically consistent with the question.
+
+4) Answer counts and formatting
+- Prefer 3–6 answer options. For `single` choose 3–5 options by default. For `multiple`, 4–6 recommended.
+- Keep answer text concise (one sentence or phrase). Use sentence capitalization.
+
+5) Points/difficulty
+- Assign `points` 1–5. The AI should set points consistently with difficulty. Provide an optional `meta.difficultyReason` explaining the assigned points.
+
+6) Explanations and insights
+- Provide a `description` for each question with a clear explanation of the correct answer and optionally references or short source notes.
+- Optionally add a short `insight` / `interestingFact` field for the quiz admin to show as a curiosity.
+
+7) Images
+- If using images, either provide `imageUrl` (external) or `imageDataUrl` (base64 data URL). Prefer `imageDataUrl` for portability.
+- Keep image size reasonable; include `imageWidth`/`imageHeight` metadata if known.
+
+8) Ordering-specific
+- For `ordering` questions, avoid giving away the order in the answer text. Use neutral naming (e.g., "Event A: Siege of X" rather than including the year in the answer text).
+- If dates are necessary, move them to `description` only after answers are revealed.
+
+9) Consistency checks for AI before finalizing JSON (must be applied automatically)
+- Ensure every question has unique `id`.
+- Ensure each question with `answerType: single` has exactly one `correct: true` (or the `correct` field omitted and `correctSelection` defined elsewhere).
+- For `multiple`, ensure at least one answer has `correct: true` and not all answers are correct unless intentionally designed.
+- For `ordering`, ensure `ordering` references all provided answer IDs exactly once.
+- Ensure answer `id`s are single uppercase letters, sequential from `A`.
+- Reject or rewrite answers where answer text repeats the full question text or trivially hints the solution.
+- Check for duplicate answer texts and remove/adjust duplicates.
+- Verify `points` inside range 1–5.
+
+10) Content and safety
+- Ensure no copyrighted full passages are reproduced verbatim unless licensed. Prefer short paraphrases for extracts.
+- Avoid sensitive personal data, explicit, or disallowed content.
+
+AI generation prompt template (how to instruct the AI)
+- "Generate N questions for a quiz about TOPIC. Output a JSON object with arrays `questions`, `quizzes`, `categories` as described. For each question include: `id`, `text`, `answerType` (single|multiple|ordering), `answers` (with `id` letters and `text`), `points` (1-5), and `description` (explanation). Ensure IDs are unique. Follow these validation rules: (list checks above). Avoid answers that reveal the correct answer (e.g., do not include years in ordering answers). Include 2 sample `quizzes` mapping these questions. Provide an example `categories` entry if needed."
+
+Complete sample JSON (small quiz)
+{
+  "version":"1",
+  "categories":[{"id":"c1","name":"General Knowledge"}],
+  "questions":[ /* include q-001, q-010, q-020 examples from above */ ],
+  "quizzes":[{"id":"quiz-1","name":"Sample Quiz","selectedQuestionIds":["q-001","q-010","q-020"]}]
+}
+
+Notes for implementers / integrators
+- If you embed images as `imageDataUrl` they become large; ensure upload/transfer supports large JSON.
+- The backend will normalize IDs to uppercase; keep client-side references consistent.
+- If additional features are required (partial scoring, time-limits per question), include `meta` fields and document expected behavior.
+
+-
+--
+Checklist for the AI before returning JSON
+- [ ] Validate ID uniqueness
+- [ ] Validate answer IDs and ordering references
+- [ ] Validate points range
+- [ ] Validate no answer leaks solution (dates, ordinals, obvious labels)
+- [ ] Validate answers are plausible distractors
+- [ ] Provide `description` for each question explaining the correct answer
+- [ ] Provide at least one `quiz` object mapping the questions
+
+
+Pravidlá (požiadavky pre slovenské generovanie otázok)
+
+- **Jazyk:** Všetky otázky, popisy, vysvetlenia a texty odpovedí musia byť výhradne v slovenskom jazyku. Ak zdrojový obsah nie je po slovensky, automaticky ho prelož a uprav tak, aby bol prirodzený a správny po slovensky.
+- **Počet možných odpovedí:** Každá otázka typu `single` alebo `multiple` musí mať presne 4 odpovede (ID `A`, `B`, `C`, `D`). Ak pôvodný návrh obsahuje iný počet, uprav ho tak, aby boli doplnené alebo zredukované plausible distractory na celkom 4 položky.
+- **Zoradiace (`ordering`) otázky:** Generuj pole `ordering` obsahujúce správne poradie (napr. `["A","B","C","D"]`), ale zároveň nastav `shuffleAnswers: true` a pri výstupe zamiešaj poradové zobrazenie odpovedí tak, aby sa pri prezentácii neobjavovala vždy logická postupnosť `A,B,C,D` (t.j. prevedenie na náhodné poradie). Takto sa zabráni, aby poradie ID priamo prezradilo riešenie.
+- **Overenie faktickej správnosti:** Pred pridaním otázky vykonaj základnú fakt-check kontrolu (v rámci dostupných zdrojov). Otázky, ktoré by vyžadovali udalosti z budúcnosti alebo odkazujú na niečo, čo sa ešte nestalo, treba upraviť alebo odmietnuť. Ak nie je možné overiť, označ otázku v `meta.reviewRequired: true`.
+- **Žiadne zodpovedanie v texte otázky:** Skontroluj, či text otázky priamo neobsahuje odpoveď (napr. „Ktorý rok vznikol X? 1999“ alebo „Správna odpoveď je B“). Ak áno, prepíš alebo odstráň tú časť tak, aby otázka neobsahovala spoľahlivú nápovedu k riešeniu.
+- **Konzistencia ID odpovedí:** Použi vždy ID `A`,`B`,`C`,`D` pre odpovede (nie `E`/`F` atď.). V `ordering` referencuj presne tieto ID, každé raz.
+- **Kontrola duplicít a náznakov:** Skontroluj duplicitu textov odpovedí a odstráň alebo uprav duplicitné položky; skontroluj, či žiadna odpoveď priamo neopisuje unikátny znak z otázky, ktorý by ju prezradil.
+
+Aktualizovaný checklist (doplnky)
+- [ ] Všetky texty sú v slovenčine
+- [ ] Každá `single`/`multiple` otázka má presne 4 odpovede (`A`..`D`)
+- [ ] `ordering` otázky majú `ordering` pole a `shuffleAnswers: true`
+- [ ] Žiadna otázka neodkazuje na budúce udalosti ani neobsahuje odpoveď v texte
+- [ ] Overená faktická správnosť alebo označené `meta.reviewRequired`
+
+- [ ] Otázky nie sú príliš jednoduché (vyhýbať sa triviálnym faktom)
+- [ ] V súbore sa neopakujú identické alebo veľmi podobné otázky (de-duplication)
+
+End of guide
+
+Use this file for an AI to study the exact schema, validation rules, and generation constraints before producing quiz JSON for the system.

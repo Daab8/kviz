@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "OTA Update Connected Gamepads (WiFi)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/tools/ota-push.js",
+      "cwd": "${workspaceFolder}/backend",
+      "console": "integratedTerminal",
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    }
+  ]
+}

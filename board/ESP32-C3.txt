@@ -1,0 +1,46 @@
+BOOT down, RESET down, RESET up, BOOT up
+py -m esptool --chip esp32c3 --port COM4 erase-flash
+py -m esptool --chip esp32c3 --port COM4 --baud 460800 write-flash -z 0x0 C:\ESP32_GENERIC_C3-20251209-v1.27.0.bin
+
+
+zoznam suciastok:
+SS12F15 vypinac - x1
+KY-016 RGB LED - x1
+TM1637 displej - x1
+Tactile Push Button with cap - x5
+ESP32-C3 microchip - x1
+TP4056 microchip - x1
+dupont line kable (F to F) - 1x pack (20)
+100k ohm rezistory - x2
+18650 bateria - x1
+battery plate - x2
+5mm LED cap - x1
+
+
+wiring:
+
+display
+VCC - 5V
+CLK - gpio 0
+DIO - gpio 1
+
+LED
+R - 2
+G - 3
+B - 4
+
+BUTTONS
+A - gpio 10
+B - gpio 7
+C - gpio 6
+D - gpio 5
+R - gpio 8
+
+power Button
+middle pin - 5V
+
+charging chip
+BAT+ - battery +
+BAT+ - power button right pin
+BAT- - battery -
+BAT- - GND

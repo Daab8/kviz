@@ -1,0 +1,78 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run Local MQTT Broker",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Set-Location 'd:\\Workspace\\ESP32-C3\\project-name\\backend'; if (-not (Test-Path 'node_modules')) { npm install }; npm run start:broker"
+      ],
+      "isBackground": true,
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Node Game Server",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Set-Location 'd:\\Workspace\\ESP32-C3\\project-name\\backend'; if (-not (Test-Path 'node_modules')) { npm install }; npm start"
+      ],
+      "isBackground": true,
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Upload & Monitor MicroPython",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "$esp = Get-CimInstance Win32_SerialPort | Where-Object { $_.PNPDeviceID -match 'VID_303A&PID_1001' } | Sort-Object DeviceID | Select-Object -First 1; if (-not $esp) { Write-Error 'No ESP32-C3 serial port found (VID_303A&PID_1001). Connect the board and retry.'; exit 1 }; $port = $esp.DeviceID; Write-Host \"[esp] Using port $port\"; $old = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(.exe)?$' -and $_.CommandLine -match \"serial.tools.miniterm $port\" }; if ($old) { $old | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }; Start-Sleep -Milliseconds 300; & ampy --port $port put 'd:\\Workspace\\ESP32-C3\\project-name\\board\\main.py'; & python -m serial.tools.miniterm $port 115200; exit 0"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "close": true,
+        "showReuseMessage": false
+      },
+      "runOptions": {
+        "instanceLimit": 2
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "OTA Update Connected Gamepads (WiFi)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Set-Location 'd:\\Workspace\\ESP32-C3\\project-name\\backend'; if (-not (Test-Path 'node_modules')) { npm install }; npm run ota:push"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "close": true,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    }
+  ]
+}

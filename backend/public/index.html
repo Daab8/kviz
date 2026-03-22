@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="sk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quiz</title>
+    <style>
+      :root {
+        --bg: #f7f4ed;
+        --ink: #1d2630;
+        --line: #d8d2c6;
+        --card: #ffffff;
+        --admin: #0e4ea8;
+        --quiz: #157c40;
+        --maker: #9a3412;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100svh;
+        font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(900px 320px at -10% -10%, #e0f2fe 0%, transparent 70%),
+          radial-gradient(900px 320px at 110% -10%, #dcfce7 0%, transparent 70%),
+          var(--bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+      }
+
+      .card {
+        width: min(500px, calc(100vw - 32px));
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 18px;
+      }
+
+      @media (max-width: 700px) {
+        body {
+          padding: 12px;
+        }
+
+        .card {
+          width: min(500px, calc(100vw - 24px));
+        }
+
+        .link {
+          padding: 18px;
+        }
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: clamp(1.3rem, 3vw, 2rem);
+      }
+
+      p {
+        margin: 0;
+        color: #5f6975;
+      }
+
+      .grid {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .link {
+        display: block;
+        text-decoration: none;
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 21px;
+        min-height: 126px;
+        background: #fff;
+        transition: transform 0.16s ease, box-shadow 0.16s ease;
+      }
+
+      .link:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.07);
+      }
+
+      .link h2 {
+        margin: 0 0 6px;
+        font-size: 1.58rem;
+        white-space: normal;
+      }
+
+      .link p {
+        font-size: 1.35rem;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+
+      .admin h2 {
+        color: var(--admin);
+      }
+
+      .quiz h2 {
+        color: var(--quiz);
+      }
+
+      .maker h2 {
+        color: var(--maker);
+      }
+      .gamepad h2 { color: #b45309; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="grid">
+        <a class="link admin" href="/admin">
+          <h2>Admin</h2>
+          <p>Ovladanie kvizu a gamepadov.</p>
+        </a>
+
+        <a class="link quiz" href="/quiz">
+          <h2>Quiz</h2>
+          <p>Projektorovy pohlad pre hracov.</p>
+        </a>
+
+        <a class="link maker" href="/maker">
+          <h2>Maker</h2>
+          <p>Tvorba otazok a sprava kvizov.</p>
+        </a>
+
+        <a class="link gamepad" href="/gamepad">
+          <h2>Gamepad</h2>
+          <p>Otvor virtuálny gamepad.</p>
+        </a>
+      </div>
+    </main>
+  </body>
+</html>

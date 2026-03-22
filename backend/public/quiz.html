@@ -1,0 +1,1124 @@
+<!doctype html>
+<html lang="sk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kvíz</title>
+    <style>
+      :root {
+        --bg: #f8f3ea;
+        --ink: #1d2630;
+        --card: #ffffff;
+        --line: #d6cec2;
+        --accent: #0e4ea8;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      html {
+        /* Projector scaling: enlarges all rem-based typography/layout with viewport. */
+        font-size: clamp(16px, calc(0.95vmin + 10px), 26px);
+      }
+      body {
+        margin: 0;
+        font-family: "Merriweather", Georgia, serif;
+        color: var(--ink);
+        background: radial-gradient(circle at top left, #fffdf7, var(--bg));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      .wrap {
+        width: min(98vw, 1800px);
+        max-width: 1800px;
+        margin: 0 auto;
+        padding: clamp(10px, 1.2vmin, 20px);
+      }
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px;
+        position: relative;
+      }
+      .meta {
+        color: #5c6470;
+        margin-bottom: 12px;
+      }
+      .meta-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: clamp(1.7rem, 4.2vw, 3rem);
+      }
+      .question-image-wrap {
+        display: flex;
+        justify-content: center;
+        margin: 10px 0 12px;
+      }
+      .question-image {
+        display: block;
+        margin: 0 auto;
+        max-width: min(100%, 1100px);
+        max-height: min(50vh, 560px);
+        object-fit: contain;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+      }
+      .question-description-reveal {
+        margin: 8px auto 14px;
+        max-width: 1000px;
+        text-align: center;
+        font-size: clamp(1.2rem, 2.4vw, 1.85rem);
+        line-height: 1.45;
+        color: #334155;
+      }
+      .question-description-reveal strong {
+        color: #1f2937;
+      }
+      .answers {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .answer {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px;
+        font-size: clamp(1rem, 2.2vw, 1.35rem);
+        position: relative;
+        overflow: hidden;
+      }
+      /* Make the fill-wrap cover the full answer box so the colored fill
+         can extend to the edges, and anchor the fill to the left so it
+         grows left→right. Keep text padded by adding padding on the
+         content element. */
+      .answer .answer-fill-wrap {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+      }
+      .answer .answer-fill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 0%;
+        z-index: 0;
+      }
+      .answer .answer-content {
+        position: relative;
+        z-index: 1;
+        padding: 0;
+      }
+      .answer-percent {
+        position: absolute;
+        right: 10px;
+        top: 8px;
+        font-size: 0.85rem;
+        z-index: 2;
+        color: #1f2937;
+        font-weight: 700;
+      }
+      .answer.correct {
+        border-color: #89d3a3;
+        background: #e9f9ee;
+      }
+      .countdown {
+        font-size: clamp(1.2rem, 2.2vw, 1.9rem);
+        font-weight: 800;
+        color: var(--accent);
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 6px 12px;
+        line-height: 1;
+        white-space: nowrap;
+        margin-top: -2px;
+      }
+      .countdown.danger {
+        color: #b91c1c;
+        border-color: #fecaca;
+        background: #fef2f2;
+      }
+      .muted {
+        color: #5f6770;
+      }
+      .center {
+        text-align: center;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1.25fr 1fr;
+        gap: 16px;
+      }
+      .final-pie-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 0 2px;
+      }
+      .final-pie-legend {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        margin-top: 6px;
+        color: #374151;
+        font-weight: 600;
+      }
+      .insight-divider {
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(0,0,0,0.06), rgba(0,0,0,0.12), rgba(0,0,0,0.06));
+        margin: 18px 0 6px;
+      }
+      /* enable-audio button removed (no visible UI) */
+      .legend-swatch {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        margin-right: 8px;
+        border: 1px solid rgba(0,0,0,0.06);
+        vertical-align: middle;
+      }
+      .legend-swatch.correct { background: #16a34a; }
+      .legend-swatch.incorrect { background: #dc2626; }
+      .legend-swatch.timeout { background: #6b7280; }
+      .stat-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+      }
+      .stat-card.stats-summary {
+        text-align: center;
+      }
+      .stat-card.stats-summary canvas {
+        display: block;
+        margin: 0 auto;
+      }
+      .stat-card.stats-summary .legend {
+        justify-content: center;
+      }
+      .legend {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 8px 0;
+      }
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.9rem;
+      }
+      .swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+        border: 1px solid #888;
+      }
+      .leader {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .leader-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      }
+      .name-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .name-chip {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+        font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+        background: #fff;
+      }
+      .rank {
+        display: inline-block;
+        min-width: 1.8rem;
+        text-align: center;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        font-size: 0.82rem;
+        padding: 2px 5px;
+      }
+      .vote-breakdown {
+        margin-top: 14px;
+        text-align: left;
+      }
+      .vote-row {
+        margin-bottom: 10px;
+      }
+      .vote-row-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        font-size: 0.95rem;
+      }
+      .timer-bar {
+        position: relative;
+        height: 26px;
+        border-radius: 999px;
+        background: #e5e7eb;
+        overflow: hidden;
+        margin: 14px 0 6px;
+      }
+      .timer-bar-fill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 100%;
+        background: #3b82f6;
+        transition: background 0.2s linear;
+        z-index: 0;
+      }
+      .timer-bar-seconds {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #0b3a6b;
+        z-index: 1;
+      }
+      /* audio overlay removed */
+      .question-meta {
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+        color: #334155;
+      }
+      .question-meta strong {
+        font-weight: 700;
+      }
+      .question-meta .meta-label {
+        font-weight: 400;
+        color: #334155;
+        margin-right: 4px;
+      }
+      .answer-vote-percent {
+        float: right;
+        font-size: 0.82rem;
+        color: #334155;
+      }
+      .vote-bar {
+        margin-top: 5px;
+        height: 8px;
+        border-radius: 999px;
+        background: #e5e7eb;
+        overflow: hidden;
+      }
+      .vote-bar-fill {
+        height: 100%;
+        background: #2563eb;
+      }
+
+      /* Question wrapper and points badge */
+      .question-wrap {
+        /* keep in normal flow; badge is positioned relative to .panel */
+        position: static;
+      }
+
+      .question-points {
+        /* absolute relative to .panel so it aligns with the panel top edge */
+        position: absolute;
+        right: 12px;
+        top: 12px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        padding: 6px 10px;
+        border-radius: 8px;
+        font-weight: 800;
+        color: #0b3a6b;
+        font-size: clamp(1rem, 1.8vw, 1.15rem);
+        z-index: 999;
+        box-shadow: 0 2px 6px rgba(16,24,40,0.06);
+        white-space: nowrap;
+      }
+
+      /* Single-answer layout: make question larger but keep left-aligned; center the
+         answer type label instead so users can see the question type clearly. */
+      .single-center h1 {
+        text-align: left;
+        font-size: clamp(2rem, 5vw, 3.4rem);
+      }
+      .question-type {
+        text-align: center;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 8px;
+        font-size: clamp(1rem, 1.8vw, 1.15rem);
+      }
+      .single-center .answers {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+      .single-center .answer {
+        width: 85%;
+      }
+
+      @media (max-width: 900px) {
+        html {
+          font-size: 16px;
+        }
+        body {
+          display: block;
+        }
+        .wrap {
+          width: auto;
+          max-width: none;
+          padding: 10px;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .question-image {
+          max-height: min(36vh, 360px);
+        }
+        .meta-row {
+          align-items: center;
+        }
+        .meta {
+          margin-bottom: 8px;
+        }
+        .countdown {
+          font-size: 1.05rem;
+          padding: 5px 10px;
+          margin-top: 0;
+        }
+        /* On narrow screens keep the badge inside the panel area */
+        .question-points {
+          top: 12px;
+          right: 12px;
+          font-size: 0.95rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="panel">
+        <div id="content"></div>
+      </div>
+    </div>
+
+
+
+    <script>
+      const POLL_MS = 700;
+      let state = null;
+      let lastStage = null;
+      let timerRaf = null;
+      let timerEndsAtLocal = null;
+      let timerTotalMsLocal = null;
+
+      // Removed automatic audio priming/prefetch on page load.
+      // Audio will be created and played only when voting starts via
+      // the `startVotingAudio()` call to avoid audible playback on load.
+      let voteAudio = null;
+      let audioOverlayEl = null;
+
+      // No visible enable-audio UI: use automatic retries and refetch on failures.
+      function showEnableBtn() { /* no-op: keep UI clean */ }
+      function hideEnableBtn() { /* no-op */ }
+
+      function cancelTimerRaf() {
+        if (timerRaf) {
+          cancelAnimationFrame(timerRaf);
+          timerRaf = null;
+        }
+      }
+
+      function startTimerLoop(totalMs) {
+        cancelTimerRaf();
+        const fill = document.getElementById("timerFill");
+        const secEl = document.getElementById("timerSeconds");
+
+        // Capture endsAt now to make animation smooth and independent from fetch timing
+        timerTotalMsLocal = Math.max(1, Number(totalMs));
+        timerEndsAtLocal = Number(state && state.votingEndsAt ? Number(state.votingEndsAt) : (Date.now() + timerTotalMsLocal));
+
+        function tick() {
+          if (!state || state.stage !== "voting") {
+            cancelTimerRaf();
+            return;
+          }
+          // query live elements each frame in case render() replaced parts of DOM
+          const liveFill = document.getElementById("timerFill");
+          const liveSec = document.getElementById("timerSeconds");
+          const msLeft = Math.max(0, timerEndsAtLocal - Date.now());
+          const percent = timerTotalMsLocal > 0 ? Math.max(0, Math.min(100, (msLeft / timerTotalMsLocal) * 100)) : 0;
+          if (liveFill) liveFill.style.width = percent + "%";
+          if (liveSec) liveSec.textContent = `${Math.ceil(msLeft / 1000)}s`;
+          if (liveFill) {
+            if (percent < 33) liveFill.style.background = "#dc2626";
+            else if (percent < 66) liveFill.style.background = "#f59e0b";
+            else liveFill.style.background = "#3b82f6";
+          }
+          if (msLeft > 0) {
+            timerRaf = requestAnimationFrame(tick);
+          } else {
+            cancelTimerRaf();
+          }
+        }
+
+        tick();
+      }
+
+      function createVoteAudio() {
+        if (voteAudio) return voteAudio;
+        // Prefer an existing DOM audio element if present (primed on load), otherwise create one.
+        try {
+          const el = document.getElementById('voteAudio');
+          if (el) {
+            voteAudio = el;
+            voteAudio.loop = true;
+            voteAudio.preload = 'auto';
+            try { voteAudio.crossOrigin = 'anonymous'; } catch (e) {}
+            return voteAudio;
+          }
+        } catch (e) {}
+        voteAudio = new Audio('/music.aac');
+        voteAudio.loop = true;
+        voteAudio.preload = 'auto';
+        voteAudio.crossOrigin = 'anonymous';
+        return voteAudio;
+      }
+
+      // audio overlay removed — provide no-op functions to avoid runtime errors
+      function showAudioOverlay() {
+        /* intentionally empty */
+      }
+
+      function removeAudioOverlay() {
+        /* intentionally empty */
+      }
+
+      // audio overlay removed
+
+      function startVotingAudio() {
+        try {
+          const a = createVoteAudio();
+          if (!a) return;
+
+          const doPlay = () => {
+            try { a.muted = false; } catch (e) {}
+            try { a.volume = 1; } catch (e) {}
+            try { a.currentTime = 0; } catch (e) {}
+            try {
+              const p = a.play && a.play();
+              if (p && typeof p.then === 'function') {
+                    p.then(() => { try { a.dataset.primed = '1'; } catch (e) {} try { localStorage.setItem('quizAudioAllowed','1'); } catch(e){} });
+                p.catch(() => {});
+              }
+            } catch (err) {
+              // final fallback: ignore
+            }
+          };
+
+          // If we started a background fetch earlier, wait for it to complete
+          // so the audio element has a fully available source to play from.
+          try {
+            const r = window.__voteAudioReady;
+            if (r && typeof r.then === 'function') {
+              r.then(() => {
+                try { doPlay(); } catch (e) { doPlay(); }
+              }).catch(() => {
+                // Fetch failed — still attempt playback as a fallback.
+                doPlay();
+              });
+              return;
+            }
+          } catch (e) {}
+
+          // No prefetch in progress — attempt immediate play and start a retry
+          // loop in case autoplay was blocked. If blocked, show an unobtrusive
+          // button so the user can grant audio via a gesture.
+          let attempts = 0;
+          const maxAttempts = 10;
+          let retryInterval = null;
+
+          const enableBtn = (function getBtn() {
+            try {
+              let el = document.getElementById('enableAudioBtn');
+              if (!el) {
+                el = document.createElement('button');
+                el.id = 'enableAudioBtn';
+                el.textContent = 'Povoliť zvuk';
+                document.body.appendChild(el);
+              }
+              return el;
+            } catch (e) { return null; }
+          }());
+
+          function showEnableBtn() {
+            try { if (enableBtn) enableBtn.style.display = 'inline-block'; } catch (e) {}
+          }
+          function hideEnableBtn() {
+            try { if (enableBtn) enableBtn.style.display = 'none'; } catch (e) {}
+          }
+
+          if (enableBtn) {
+            enableBtn.onclick = function () {
+              try { doPlay(); } catch (e) {}
+              hideEnableBtn();
+              if (retryInterval) { clearInterval(retryInterval); retryInterval = null; }
+            };
+          }
+
+          // Try immediate play once.
+          doPlay();
+
+          // Then attempt a few automatic retries; if still blocked, show UI.
+          try {
+            retryInterval = setInterval(() => {
+              attempts += 1;
+              try {
+                const p2 = a.play && a.play();
+                if (p2 && typeof p2.then === 'function') {
+                  p2.then(() => {
+                    // success
+                    try { a.dataset.primed = '1'; } catch (e) {}
+                    try { localStorage.setItem('quizAudioAllowed','1'); } catch (e) {}
+                    if (retryInterval) { clearInterval(retryInterval); retryInterval = null; }
+                  }).catch(async () => {
+                    if (attempts >= maxAttempts) {
+                      // Try refetching the media and assign a fresh blob URL, then play.
+                      try {
+                        const ok = await (async function refetchAndPlay() {
+                          try {
+                            const r = await fetch('/music.aac');
+                            if (!r.ok) return false;
+                            const blob = await r.blob();
+                            const url = URL.createObjectURL(blob);
+                            try { a.src = url; } catch (e) {}
+                            try { a.currentTime = 0; } catch (e) {}
+                            try {
+                              const p3 = a.play && a.play();
+                              if (p3 && typeof p3.then === 'function') {
+                                await p3;
+                                try { a.dataset.primed = '1'; } catch (e) {}
+                                try { localStorage.setItem('quizAudioAllowed','1'); } catch (e) {}
+                                return true;
+                              }
+                            } catch (e) {}
+                          } catch (e) {}
+                          return false;
+                        })();
+                        if (ok) {
+                          if (retryInterval) { clearInterval(retryInterval); retryInterval = null; }
+                        }
+                      } catch (e) {}
+                      if (retryInterval) { clearInterval(retryInterval); retryInterval = null; }
+                    }
+                  });
+                }
+              } catch (e) {
+                if (attempts >= maxAttempts) {
+                  showEnableBtn();
+                  if (retryInterval) { clearInterval(retryInterval); retryInterval = null; }
+                }
+              }
+            }, 500);
+          } catch (e) {
+            showEnableBtn();
+          }
+        } catch (e) {
+          try { showAudioOverlay(); } catch (err) {}
+        }
+      }
+
+      function stopVotingAudio() {
+        if (!voteAudio) return;
+        try {
+          voteAudio.pause();
+          voteAudio.currentTime = 0;
+        } catch (e) {}
+        removeAudioOverlay();
+      }
+
+      function esc(x) {
+        return String(x == null ? "" : x)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function stageText(stage) {
+        const map = {
+          idle: "Neaktívne",
+          welcome: "Úvod",
+          question: "Otázka",
+          voting: "Hlasovanie",
+          collecting: "Hlasovanie",
+          review: "Otázka",
+          reveal: "Správne odpovede",
+          finished: "Koniec kvízu",
+        };
+        return map[stage] || stage;
+      }
+
+      function renderQuestion(q, reveal, latestResult) {
+        if (!q) return "<p class='muted'>Žiadna otázka.</p>";
+        const correct = new Set((q.correctSelection || []).map((x) => String(x || "").toUpperCase()));
+        const isOrderingReveal = reveal && q.answerType === "ordering";
+
+        const pointsNum = Number.isFinite(Number(q.points)) ? Number(q.points) : 1;
+        // Slovak pluralization: 1 -> 'bod', 2-4 -> 'body', others -> 'bodov'.
+        function pluralPoints(n) {
+          const mod100 = n % 100;
+          const mod10 = n % 10;
+          if (mod100 >= 11 && mod100 <= 14) return `${n} bodov`;
+          if (mod10 === 1) return `${n} bod`;
+          if (mod10 >= 2 && mod10 <= 4) return `${n} body`;
+          return `${n} bodov`;
+        }
+        const pointsText = pluralPoints(pointsNum);
+        const typeLabel = q.answerType === "multiple" ? "Viac odpovedí" : q.answerType === "ordering" ? "Zoradenie" : "Jedna odpoveď";
+
+        const baseAnswers = Array.isArray(q.answers) ? q.answers : [];
+        let answersForRender = baseAnswers;
+
+        if (isOrderingReveal) {
+          const byId = new Map();
+          for (const a of baseAnswers) {
+            const id = String(a && a.id ? a.id : "").toUpperCase();
+            if (!id) continue;
+            byId.set(id, a);
+          }
+
+          const ordered = [];
+          for (const idRaw of (q.correctSelection || [])) {
+            const id = String(idRaw || "").toUpperCase();
+            if (!byId.has(id)) continue;
+            ordered.push(byId.get(id));
+            byId.delete(id);
+          }
+
+          for (const a of baseAnswers) {
+            const id = String(a && a.id ? a.id : "").toUpperCase();
+            if (!byId.has(id)) continue;
+            ordered.push(a);
+            byId.delete(id);
+          }
+
+          answersForRender = ordered;
+        }
+
+        const voteCounts = {};
+        let totalResponders = 0;
+        if (latestResult && Array.isArray(latestResult.results)) {
+          for (const r of latestResult.results) {
+            const picked = Array.isArray(r.selection) ? r.selection : [];
+            const already = new Set();
+            for (const raw of picked) {
+              const idv = String(raw || "").toUpperCase();
+              if (!idv || already.has(idv)) continue;
+              voteCounts[idv] = (voteCounts[idv] || 0) + 1;
+              already.add(idv);
+            }
+          }
+          totalResponders = Number(latestResult.totalResponders || 0);
+        }
+
+        const answersHtml = answersForRender.map((a, idx) => {
+          const id = String(a.id || "").toUpperCase();
+          const isCorrect = isOrderingReveal ? true : (reveal && correct.has(id));
+          const label = `${id}.`;
+          const count = Number(voteCounts[id] || 0);
+          const pct = totalResponders > 0 ? Math.min(100, Math.max(0, (count / totalResponders) * 100)) : 0;
+          const fillColor = isCorrect ? "rgba(16,185,129,0.28)" : "rgba(220,38,38,0.22)";
+          const fillHtml = reveal ? `<div class="answer-fill" style="width:${pct}%;background:${fillColor};"></div>` : "";
+          return `<div class="answer ${isCorrect ? "correct" : ""}"><div class="answer-fill-wrap">${fillHtml}</div><div class="answer-content"><strong>${esc(label)}</strong> ${esc(a.text)}</div>${reveal ? `<div class="answer-percent">${pct.toFixed(1)}%</div>` : ""}</div>`;
+        }).join("");
+
+        const hasRevealDescription = reveal && String(q.description || "").trim();
+        const description = hasRevealDescription
+          ? `<p class="question-description-reveal">${esc(q.description)}</p>`
+          : "";
+
+        const hasImage = Boolean(q.imageDataUrl);
+        const imageClass = "question-image";
+        const image = hasImage
+          ? `<div class="question-image-wrap"><img class="${imageClass}" src="${q.imageDataUrl}" alt="Obrázok otázky" /></div>`
+          : "";
+
+        const descriptionBeforeImage = hasRevealDescription && !hasImage ? description : "";
+        const descriptionAfterImage = hasRevealDescription && hasImage ? description : "";
+
+        // Wrap the question so we can absolutely-position the points badge.
+        return `
+          <div class="question-wrap">
+            <div class="question-points">${esc(pointsText)}</div>
+            <h1>${esc(q.text)}</h1>
+            ${reveal ? "" : `<div class="question-type">${esc(typeLabel)}</div>`}
+            ${descriptionBeforeImage}
+            ${image}
+            ${descriptionAfterImage}
+            <div class="answers">${answersHtml}</div>
+          </div>
+        `;
+      }
+
+      function renderLeaderboard(items) {
+        return (items || []).map((x, idx) => {
+          const rank = idx + 1;
+          const gpNum = Number(x.gamepadNumber || 0);
+          const prefix = gpNum > 0 ? `#${gpNum} ` : "";
+          return `<div class="leader-row"><span><span class="rank">${rank}</span> ${esc(prefix)}${esc(x.name || x.id)}</span><strong>${Number(x.points || 0)} bodov</strong></div>`;
+        }).join("");
+      }
+
+      function computeRoundAnswerVoteCounts(question, latestResult) {
+        const answers = Array.isArray(question && question.answers) ? question.answers : [];
+        const counts = {};
+        for (const a of answers) {
+          const id = String(a && a.id ? a.id : "").toUpperCase();
+          if (!id) continue;
+          counts[id] = 0;
+        }
+
+        const results = Array.isArray(latestResult && latestResult.results) ? latestResult.results : [];
+        for (const r of results) {
+          const picked = Array.isArray(r && r.selection) ? r.selection : [];
+          const seenInOneVote = new Set();
+          for (const raw of picked) {
+            const id = String(raw || "").toUpperCase();
+            if (!Object.prototype.hasOwnProperty.call(counts, id)) continue;
+            if (seenInOneVote.has(id)) continue;
+            counts[id] += 1;
+            seenInOneVote.add(id);
+          }
+        }
+
+        return answers.map((a) => {
+          const id = String(a && a.id ? a.id : "").toUpperCase();
+          return {
+            id,
+            text: String(a && a.text ? a.text : ""),
+            count: Number(counts[id] || 0),
+          };
+        });
+      }
+
+      function renderRoundVoteBreakdown(question, latestResult) {
+        const rows = computeRoundAnswerVoteCounts(question, latestResult);
+        if (!rows.length) return "";
+
+        const totalResponders = Number(latestResult && latestResult.totalResponders ? latestResult.totalResponders : 0);
+        const body = rows
+          .map((row) => {
+            const pct = totalResponders > 0 ? (row.count / totalResponders) * 100 : 0;
+            const pctLabel = totalResponders > 0 ? `${pct.toFixed(1)}%` : "0.0%";
+            return `<div class="vote-row">
+              <div class="vote-row-head">
+                <span><strong>${esc(row.id)}.</strong> ${esc(row.text)}</span>
+                <span>${row.count} hlasov (${pctLabel})</span>
+              </div>
+              <div class="vote-bar"><div class="vote-bar-fill" style="width:${Math.max(0, Math.min(100, pct))}%"></div></div>
+            </div>`;
+          })
+          .join("");
+
+        return `<div class="vote-breakdown"><h2 style="margin:10px 0 8px; font-size:1.15rem;">Hlasy podľa odpovede</h2>${body}</div>`;
+      }
+
+      function drawPie(canvas, data) {
+        const ctx = canvas.getContext("2d");
+        const total = data.correct + data.incorrect + data.timeout;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (total < 1) return;
+
+        const parts = [
+          { v: data.correct, color: "#16a34a" },
+          { v: data.incorrect, color: "#dc2626" },
+          { v: data.timeout, color: "#6b7280" },
+        ];
+
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const r = Math.min(cx, cy) - 4;
+
+        let angle = -Math.PI / 2;
+        for (const p of parts) {
+          if (p.v <= 0) continue;
+          const sweep = (p.v / total) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.arc(cx, cy, r, angle, angle + sweep);
+          ctx.closePath();
+          ctx.fillStyle = p.color;
+          ctx.fill();
+          angle += sweep;
+        }
+      }
+
+      function render() {
+        const el = document.getElementById("content");
+        if (!state) {
+          el.innerHTML = "<p>Načítavam...</p>";
+          return;
+        }
+
+        const stage = state.stage || "idle";
+        const qNum = Number(state.questionIndex || 0) + 1;
+        const total = Number(state.totalQuestions || 0);
+        const headerText = `<strong>${stageText(stage)}</strong> | Kvíz: ${esc(state.activeQuizName || "-")} | Otázka ${qNum}/${total}`;
+        const header = `<div id="headerMeta" class='meta'>${headerText}</div>`;
+
+        if (stage === "welcome") {
+          const teams = Array.isArray(state.gamepads) ? state.gamepads : [];
+          const teamHtml = teams.length
+            ? `<div class="name-grid">${teams
+                .map((g) => {
+                  const gpNum = Number(g.gamepadNumber || 0);
+                  const prefix = gpNum > 0 ? `#${gpNum} ` : "";
+                  return `<div class="name-chip">${esc(prefix)}${esc(g.name || g.id)}</div>`;
+                })
+                .join("")}</div>`
+            : `<p class="muted">Zatiaľ nie sú pripojené žiadne gamepady.</p>`;
+          el.innerHTML = `${header}<div class="center"><h1>Vitajte v kvíze</h1><p class="muted">Počet otázok: ${total}</p></div><h2 style="margin-top:14px;">Pripojené tímy</h2>${teamHtml}`;
+          lastStage = stage;
+          return;
+        }
+
+        if (stage === "question") {
+          cancelTimerRaf();
+          stopVotingAudio();
+          const wrapClass = state.currentQuestion && state.currentQuestion.answerType === 'single' ? 'single-center' : '';
+          el.innerHTML = `${header}<div id="questionArea" class="${wrapClass}">${renderQuestion(state.currentQuestion, false)}</div>`;
+          lastStage = stage;
+          return;
+        }
+
+        // Skip the admin-confirm phase: when stage is 'review' show the reveal
+        // immediately (render with reveal=true and latestResult). This removes
+        // the need for an explicit admin confirmation step on the audience page.
+        if (stage === "review") {
+          cancelTimerRaf();
+          stopVotingAudio();
+          const wrapClass = state.currentQuestion && state.currentQuestion.answerType === 'single' ? 'single-center' : '';
+          el.innerHTML = `${header}<div id="questionArea" class="${wrapClass}">${renderQuestion(state.currentQuestion, true, state.latestResult)}</div>`;
+          lastStage = stage;
+          return;
+        }
+
+        if (stage === "voting") {
+
+          const answerType = state.currentQuestion ? state.currentQuestion.answerType : "single";
+          const totalMs = answerType === "ordering" ? 20000 : answerType === "multiple" ? 15000 : 10000;
+
+          // Render question first, timer below it (so it appears under question/image)
+          const questionHtml = renderQuestion(state.currentQuestion, false);
+          const now = Date.now();
+          const msLeft = Math.max(0, Number(state.votingEndsAt || 0) - now);
+          const percent = totalMs > 0 ? Math.max(0, Math.min(100, (msLeft / totalMs) * 100)) : 0;
+          let barColor = "#3b82f6";
+          if (percent < 33) barColor = "#dc2626";
+          else if (percent < 66) barColor = "#f59e0b";
+          const secondsLeft = Math.ceil(msLeft / 1000);
+
+          const timer = `<div id="timerContainer" class="timer-bar"><div id="timerFill" class="timer-bar-fill" style="width:${percent}%;background:${barColor};"></div><div id="timerSeconds" class="timer-bar-seconds">${secondsLeft}s</div></div>`;
+
+          if (lastStage !== "voting") {
+            // first render into voting: create question + timer
+            const wrapClass = state.currentQuestion && state.currentQuestion.answerType === 'single' ? 'single-center' : '';
+            el.innerHTML = `${header}<div id="questionArea" class="${wrapClass}">${questionHtml}</div>${timer}`;
+            startTimerLoop(totalMs);
+            startVotingAudio();
+            try {
+              // If we don't have an allowed flag, show the enable button so
+              // users who refreshed can grant audio quickly.
+              if (localStorage.getItem('quizAudioAllowed') !== '1') {
+                showEnableBtn();
+              }
+            } catch (e) {}
+          } else {
+            // already in voting: update header and question only, keep timer DOM intact
+            const headerEl = document.getElementById("headerMeta");
+            if (headerEl) headerEl.innerHTML = headerText;
+            const qArea = document.getElementById("questionArea");
+            if (qArea) qArea.innerHTML = questionHtml;
+          }
+
+          lastStage = stage;
+          return;
+        }
+
+        if (stage === "collecting") {
+          // During collecting we keep showing the same question (short submit window).
+          cancelTimerRaf();
+          stopVotingAudio();
+          el.innerHTML = `${header}${renderQuestion(state.currentQuestion, false)}`;
+          lastStage = stage;
+          return;
+        }
+
+        if (stage === "reveal") {
+          cancelTimerRaf();
+          stopVotingAudio();
+          el.innerHTML = `${header}${renderQuestion(state.currentQuestion, true, state.latestResult)}`;
+          lastStage = stage;
+          return;
+        }
+
+        if (stage === "finished") {
+          stopVotingAudio();
+          const lr = state.latestResult || { correctCount: 0, incorrectCount: 0, timeoutCount: 0 };
+          const all = Array.isArray(state.leaderboard) ? state.leaderboard : [];
+          const leaders = stage === "finished" ? all : [];
+          const insights = state.finalInsights || {};
+          const best = insights.bestQuestion || null;
+          const worst = insights.worstQuestion || null;
+
+          const insightText = (label, item) => {
+            if (!item) {
+              return `<p class="muted"><strong>${label}:</strong> zatiaľ bez dát</p>`;
+            }
+            return `<p class="muted"><strong>${label}:</strong> Otázka ${Number(item.questionNumber || 0)} (${Number(item.successPercent || 0).toFixed(1)}%)<br>${esc(item.questionText || "")}</p>`;
+          };
+
+          const leaderCard = stage === "finished"
+            ? `<div class="stat-card">
+                <h2>Poradie tímov</h2>
+                <div class="leader">${renderLeaderboard(leaders)}</div>
+              </div>`
+            : "";
+
+          const insightsHtml = stage === "finished"
+            ? `<div class="final-insights">
+                <hr class="insight-divider" />
+                <h2 style="margin-top:6px;">Zaujímavosti</h2>
+                ${insightText("Najvyššia úspešnosť", best)}
+                ${insightText("Najnižšia úspešnosť", worst)}
+              </div>`
+            : "";
+
+          const gridClass = stage === "finished" ? "grid" : "";
+
+          el.innerHTML = `${header}
+            <div class="${gridClass}">
+              <div class="stat-card stats-summary">
+                <h1 style="font-size:1.5rem;margin-bottom:8px;">${stage === "finished" ? "Finálne štatistiky" : "Štatistiky kola"}</h1>
+                <p class="muted">Správne: ${lr.correctCount} | Nesprávne: ${lr.incorrectCount} | Neodpovedal: ${lr.timeoutCount}</p>
+                <div class="final-pie-wrap">
+                  <canvas id="finalPie" width="220" height="220"></canvas>
+                  <div class="final-pie-legend">
+                    <div><span class="legend-swatch correct"></span> Správne</div>
+                    <div><span class="legend-swatch incorrect"></span> Nesprávne</div>
+                    <div><span class="legend-swatch timeout"></span> Neodpovedal</div>
+                  </div>
+                </div>
+                ${insightsHtml}
+              </div>
+              ${leaderCard}
+            </div>
+          `;
+
+          // Draw final pie chart from aggregated quiz totals (if present)
+          try {
+            const totals = state.totalStats || { correctCount: 0, incorrectCount: 0, timeoutCount: 0 };
+            const pie = document.getElementById("finalPie");
+            if (pie && typeof drawPie === "function") {
+              drawPie(pie, {
+                correct: Number(totals.correctCount || 0),
+                incorrect: Number(totals.incorrectCount || 0),
+                timeout: Number(totals.timeoutCount || 0),
+              });
+            }
+          } catch (e) {}
+          lastStage = stage;
+          return;
+        }
+
+        el.innerHTML = `${header}<p class="muted">Čaká sa na spustenie kvízu.</p>`;
+        lastStage = stage;
+      }
+
+      async function refreshState() {
+        const res = await fetch("/api/state");
+        state = await res.json();
+        render();
+      }
+
+      async function boot() {
+        await refreshState();
+        setInterval(() => {
+          refreshState().catch(() => {});
+        }, POLL_MS);
+        // no audio toggle; audio will be unmuted and played once on voting start
+      }
+
+      boot();
+
+      // Invisible gesture listener: try to unblock audio on the first
+      // natural user gesture (click/touch/keydown). This uses the real
+      // user gesture to satisfy autoplay policies and helps after refresh.
+      (function setupGestureUnblock() {
+        const handler = function (ev) {
+          try {
+              console.info && console.info('gesture detected, attempting to unblock audio', ev && ev.type);
+              const a = createVoteAudio();
+              // Prime the audio silently: keep it muted/0 volume so the gesture
+              // doesn't produce audible playback. Later, when voting starts,
+              // `startVotingAudio()` will unmute and set volume to 1.
+              try { a.muted = true; a.volume = 0; a.currentTime = 0; } catch (e) {}
+              const p = a.play && a.play();
+            if (p && typeof p.then === 'function') {
+              p.then(() => {
+                try { a.dataset.primed = '1'; } catch (e) {}
+                try { localStorage.setItem('quizAudioAllowed', '1'); } catch (e) {}
+                console.info && console.info('audio unblocked by gesture');
+              }).catch((err) => {
+                console.info && console.info('gesture play rejected', err);
+              });
+            }
+          } catch (err) {
+            console.info && console.info('gesture unblock error', err);
+          }
+        };
+
+        try {
+          document.addEventListener('pointerdown', handler, { once: true, capture: true });
+          document.addEventListener('touchstart', handler, { once: true, capture: true });
+          document.addEventListener('keydown', handler, { once: true, capture: true });
+        } catch (e) {
+          // ignore
+        }
+      })();
+    </script>
+  </body>
+</html>
