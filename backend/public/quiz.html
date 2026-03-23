@@ -389,6 +389,124 @@
       let timerEndsAtLocal = null;
       let timerTotalMsLocal = null;
 
+      // --- Audio preload / unlock for voting music ---
+      let _votingMusic = null;
+      let _audioUnlocked = false;
+      let _audioFallbackListener = null;
+      let _userGestureSeen = false;
+      let _audioCtx = null;
+
+      function initAudio() {
+        try {
+          // Create AudioContext lazily (some browsers require user gesture to resume)
+          try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { _audioCtx = null; }
+          _votingMusic = new Audio("music.aac");
+          _votingMusic.preload = "auto";
+          _votingMusic.loop = true;
+          _votingMusic.crossOrigin = "anonymous";
+
+          // Try to start muted playback to prime buffers (muted autoplay allowed).
+          _votingMusic.muted = true;
+          _votingMusic.play().catch(() => {});
+
+          _votingMusic.addEventListener("canplaythrough", () => {
+            // ready to play without decoding delay
+          }, { once: true });
+
+          // Unlock audio on first user gesture (silent listeners) so we can unmute later.
+          // Important: do NOT unmute/play on any gesture unless we're already in `voting` stage.
+          // If the user gestures outside voting, record that a gesture happened so later
+          // autoplay during voting is allowed, but do not start playback immediately.
+          const unlock = () => {
+            if (_userGestureSeen) return;
+            _userGestureSeen = true;
+            _audioUnlocked = true; // mark that the page has received a user gesture
+
+            // Resume AudioContext and play tiny silent buffer to reliably unlock audio
+            try {
+              if (_audioCtx && _audioCtx.state !== 'running') {
+                _audioCtx.resume().catch(() => {});
+              }
+              // Play an inaudible buffer to prime audio system (works on many mobiles)
+              if (_audioCtx) {
+                const buf = _audioCtx.createBuffer(1, 1, _audioCtx.sampleRate || 22050);
+                const src = _audioCtx.createBufferSource();
+                src.buffer = buf;
+                src.connect(_audioCtx.destination);
+                try { src.start(0); } catch (e) {}
+                try { src.stop(0); } catch (e) {}
+              }
+            } catch (e) {}
+
+            // Only unmute+play right now if the quiz is currently in voting stage.
+            if (typeof state !== 'undefined' && state && state.stage === 'voting') {
+              try {
+                if (_votingMusic) {
+                  _votingMusic.muted = false;
+                  _votingMusic.play().catch(() => {});
+                }
+              } catch (e) {}
+            }
+
+            // remove gesture listeners after first gesture
+            ["pointerdown", "touchstart", "keydown", "click"].forEach((ev) => document.removeEventListener(ev, unlock));
+            // if there was a fallback listener waiting to try play, remove it
+            if (_audioFallbackListener) {
+              ["pointerdown", "touchstart", "click"].forEach((ev) => document.removeEventListener(ev, _audioFallbackListener));
+              _audioFallbackListener = null;
+            }
+          };
+
+          ["pointerdown", "touchstart", "keydown", "click"].forEach((ev) => document.addEventListener(ev, unlock, { passive: true }));
+        } catch (e) {
+          console.warn("Audio init failed", e);
+        }
+      }
+
+      function playVotingMusic() {
+        if (!_votingMusic) return;
+        try {
+          // Ensure AudioContext is resumed before attempting playback
+          try { if (_audioCtx && _audioCtx.state !== 'running') _audioCtx.resume().catch(() => {}); } catch (e) {}
+
+          // If user already interacted (and audio unlocked), make sure element is unmuted
+          if (_userGestureSeen) {
+            try { _votingMusic.muted = false; } catch (e) {}
+          }
+
+          // If the element hasn't loaded enough, call load() to encourage decoding
+          try { if (_votingMusic.readyState < 3) _votingMusic.load(); } catch (e) {}
+          // Restart from 0 for each voting phase
+          try { _votingMusic.currentTime = 0; } catch (e) {}
+          const p = _votingMusic.play();
+          if (p && typeof p.then === "function") {
+            p.catch(() => {
+              // If playback is blocked by autoplay policy, attach a one-time gesture
+              if (_audioFallbackListener) return;
+              _audioFallbackListener = () => {
+                try {
+                  if (_audioCtx && _audioCtx.state !== 'running') _audioCtx.resume().catch(() => {});
+                } catch (e) {}
+                try { _votingMusic.currentTime = 0; } catch (e) {}
+                _votingMusic.play().catch(() => {});
+                ["pointerdown", "touchstart", "click"].forEach((ev) => document.removeEventListener(ev, _audioFallbackListener));
+                _audioFallbackListener = null;
+              };
+              ["pointerdown", "touchstart", "click"].forEach((ev) => document.addEventListener(ev, _audioFallbackListener, { passive: true }));
+            });
+          }
+        } catch (e) {}
+      }
+
+      function stopVotingMusic() {
+        if (!_votingMusic) return;
+        try {
+          _votingMusic.pause();
+          try { _votingMusic.currentTime = 0; } catch (e) {}
+        } catch (e) {}
+      }
+      // --- end audio ---
+
       function cancelTimerRaf() {
         if (timerRaf) {
           cancelAnimationFrame(timerRaf);
@@ -658,6 +776,10 @@
         }
 
         const stage = state.stage || "idle";
+        // If we just left voting, stop the music
+        if (stage !== "voting" && lastStage === "voting") {
+          try { stopVotingMusic(); } catch (e) {}
+        }
         const qNum = Number(state.questionIndex || 0) + 1;
         const total = Number(state.totalQuestions || 0);
         const headerText = `<strong>${stageText(stage)}</strong> | Kvíz: ${esc(state.activeQuizName || "-")} | Otázka ${qNum}/${total}`;
@@ -720,6 +842,8 @@
             const wrapClass = state.currentQuestion && state.currentQuestion.answerType === 'single' ? 'single-center' : '';
             el.innerHTML = `${header}<div id="questionArea" class="${wrapClass}">${questionHtml}</div>${timer}`;
             startTimerLoop(totalMs);
+            // Start the voting music immediately when voting phase begins
+            try { playVotingMusic(); } catch (e) {}
           } else {
             // already in voting: update header and question only, keep timer DOM intact
             const headerEl = document.getElementById("headerMeta");
@@ -832,6 +956,8 @@
         }, POLL_MS);
       }
 
+      // Initialize audio subsystem (preload + unlock listeners)
+      try { initAudio(); } catch (e) {}
       boot();
 
     </script>
