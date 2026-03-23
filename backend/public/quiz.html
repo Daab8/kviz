@@ -48,12 +48,7 @@
         color: #5c6470;
         margin-bottom: 12px;
       }
-      .meta-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 10px;
-      }
+      
       h1 {
         margin: 0 0 10px;
         font-size: clamp(1.7rem, 4.2vw, 3rem);
@@ -133,23 +128,7 @@
         border-color: #89d3a3;
         background: #e9f9ee;
       }
-      .countdown {
-        font-size: clamp(1.2rem, 2.2vw, 1.9rem);
-        font-weight: 800;
-        color: var(--accent);
-        background: rgba(255, 255, 255, 0.94);
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        padding: 6px 12px;
-        line-height: 1;
-        white-space: nowrap;
-        margin-top: -2px;
-      }
-      .countdown.danger {
-        color: #b91c1c;
-        border-color: #fecaca;
-        background: #fef2f2;
-      }
+      
       .muted {
         color: #5f6770;
       }
@@ -183,7 +162,7 @@
         background: linear-gradient(90deg, rgba(0,0,0,0.06), rgba(0,0,0,0.12), rgba(0,0,0,0.06));
         margin: 18px 0 6px;
       }
-      /* enable-audio button removed (no visible UI) */
+
       .legend-swatch {
         display: inline-block;
         width: 18px;
@@ -208,9 +187,6 @@
         display: block;
         margin: 0 auto;
       }
-      .stat-card.stats-summary .legend {
-        justify-content: center;
-      }
       .legend {
         display: flex;
         gap: 10px;
@@ -223,12 +199,7 @@
         gap: 6px;
         font-size: 0.9rem;
       }
-      .swatch {
-        width: 12px;
-        height: 12px;
-        border-radius: 2px;
-        border: 1px solid #888;
-      }
+      
       .leader {
         display: grid;
         gap: 8px;
@@ -311,25 +282,8 @@
         color: #0b3a6b;
         z-index: 1;
       }
-      /* audio overlay removed */
-      .question-meta {
-        margin-bottom: 8px;
-        font-size: 0.95rem;
-        color: #334155;
-      }
-      .question-meta strong {
-        font-weight: 700;
-      }
-      .question-meta .meta-label {
-        font-weight: 400;
-        color: #334155;
-        margin-right: 4px;
-      }
-      .answer-vote-percent {
-        float: right;
-        font-size: 0.82rem;
-        color: #334155;
-      }
+
+      
       .vote-bar {
         margin-top: 5px;
         height: 8px;
@@ -406,16 +360,8 @@
         .question-image {
           max-height: min(36vh, 360px);
         }
-        .meta-row {
-          align-items: center;
-        }
         .meta {
           margin-bottom: 8px;
-        }
-        .countdown {
-          font-size: 1.05rem;
-          padding: 5px 10px;
-          margin-top: 0;
         }
         /* On narrow screens keep the badge inside the panel area */
         .question-points {
@@ -442,16 +388,6 @@
       let timerRaf = null;
       let timerEndsAtLocal = null;
       let timerTotalMsLocal = null;
-
-      // Removed automatic audio priming/prefetch on page load.
-      // Audio will be created and played only when voting starts via
-      // the `startVotingAudio()` call to avoid audible playback on load.
-      let voteAudio = null;
-      let audioOverlayEl = null;
-
-      // No visible enable-audio UI: use automatic retries and refetch on failures.
-      function showEnableBtn() { /* no-op: keep UI clean */ }
-      function hideEnableBtn() { /* no-op */ }
 
       function cancelTimerRaf() {
         if (timerRaf) {
@@ -494,178 +430,6 @@
         }
 
         tick();
-      }
-
-      function createVoteAudio() {
-        if (voteAudio) return voteAudio;
-        // Prefer an existing DOM audio element if present (primed on load), otherwise create one.
-        try {
-          const el = document.getElementById('voteAudio');
-          if (el) {
-            voteAudio = el;
-            voteAudio.loop = true;
-            voteAudio.preload = 'auto';
-            try { voteAudio.crossOrigin = 'anonymous'; } catch (e) {}
-            return voteAudio;
-          }
-        } catch (e) {}
-        voteAudio = new Audio('/music.aac');
-        voteAudio.loop = true;
-        voteAudio.preload = 'auto';
-        voteAudio.crossOrigin = 'anonymous';
-        return voteAudio;
-      }
-
-      // audio overlay removed — provide no-op functions to avoid runtime errors
-      function showAudioOverlay() {
-        /* intentionally empty */
-      }
-
-      function removeAudioOverlay() {
-        /* intentionally empty */
-      }
-
-      // audio overlay removed
-
-      function startVotingAudio() {
-        try {
-          const a = createVoteAudio();
-          if (!a) return;
-
-          const doPlay = () => {
-            try { a.muted = false; } catch (e) {}
-            try { a.volume = 1; } catch (e) {}
-            try { a.currentTime = 0; } catch (e) {}
-            try {
-              const p = a.play && a.play();
-              if (p && typeof p.then === 'function') {
-                    p.then(() => { try { a.dataset.primed = '1'; } catch (e) {} try { localStorage.setItem('quizAudioAllowed','1'); } catch(e){} });
-                p.catch(() => {});
-              }
-            } catch (err) {
-              // final fallback: ignore
-            }
-          };
-
-          // If we started a background fetch earlier, wait for it to complete
-          // so the audio element has a fully available source to play from.
-          try {
-            const r = window.__voteAudioReady;
-            if (r && typeof r.then === 'function') {
-              r.then(() => {
-                try { doPlay(); } catch (e) { doPlay(); }
-              }).catch(() => {
-                // Fetch failed — still attempt playback as a fallback.
-                doPlay();
-              });
-              return;
-            }
-          } catch (e) {}
-
-          // No prefetch in progress — attempt immediate play and start a retry
-          // loop in case autoplay was blocked. If blocked, show an unobtrusive
-          // button so the user can grant audio via a gesture.
-          let attempts = 0;
-          const maxAttempts = 10;
-          let retryInterval = null;
-
-          const enableBtn = (function getBtn() {
-            try {
-              let el = document.getElementById('enableAudioBtn');
-              if (!el) {
-                el = document.createElement('button');
-                el.id = 'enableAudioBtn';
-                el.textContent = 'Povoliť zvuk';
-                document.body.appendChild(el);
-              }
-              return el;
-            } catch (e) { return null; }
-          }());
-
-          function showEnableBtn() {
-            try { if (enableBtn) enableBtn.style.display = 'inline-block'; } catch (e) {}
-          }
-          function hideEnableBtn() {
-            try { if (enableBtn) enableBtn.style.display = 'none'; } catch (e) {}
-          }
-
-          if (enableBtn) {
-            enableBtn.onclick = function () {
-              try { doPlay(); } catch (e) {}
-              hideEnableBtn();
-              if (retryInterval) { clearInterval(retryInterval); retryInterval = null; }
-            };
-          }
-
-          // Try immediate play once.
-          doPlay();
-
-          // Then attempt a few automatic retries; if still blocked, show UI.
-          try {
-            retryInterval = setInterval(() => {
-              attempts += 1;
-              try {
-                const p2 = a.play && a.play();
-                if (p2 && typeof p2.then === 'function') {
-                  p2.then(() => {
-                    // success
-                    try { a.dataset.primed = '1'; } catch (e) {}
-                    try { localStorage.setItem('quizAudioAllowed','1'); } catch (e) {}
-                    if (retryInterval) { clearInterval(retryInterval); retryInterval = null; }
-                  }).catch(async () => {
-                    if (attempts >= maxAttempts) {
-                      // Try refetching the media and assign a fresh blob URL, then play.
-                      try {
-                        const ok = await (async function refetchAndPlay() {
-                          try {
-                            const r = await fetch('/music.aac');
-                            if (!r.ok) return false;
-                            const blob = await r.blob();
-                            const url = URL.createObjectURL(blob);
-                            try { a.src = url; } catch (e) {}
-                            try { a.currentTime = 0; } catch (e) {}
-                            try {
-                              const p3 = a.play && a.play();
-                              if (p3 && typeof p3.then === 'function') {
-                                await p3;
-                                try { a.dataset.primed = '1'; } catch (e) {}
-                                try { localStorage.setItem('quizAudioAllowed','1'); } catch (e) {}
-                                return true;
-                              }
-                            } catch (e) {}
-                          } catch (e) {}
-                          return false;
-                        })();
-                        if (ok) {
-                          if (retryInterval) { clearInterval(retryInterval); retryInterval = null; }
-                        }
-                      } catch (e) {}
-                      if (retryInterval) { clearInterval(retryInterval); retryInterval = null; }
-                    }
-                  });
-                }
-              } catch (e) {
-                if (attempts >= maxAttempts) {
-                  showEnableBtn();
-                  if (retryInterval) { clearInterval(retryInterval); retryInterval = null; }
-                }
-              }
-            }, 500);
-          } catch (e) {
-            showEnableBtn();
-          }
-        } catch (e) {
-          try { showAudioOverlay(); } catch (err) {}
-        }
-      }
-
-      function stopVotingAudio() {
-        if (!voteAudio) return;
-        try {
-          voteAudio.pause();
-          voteAudio.currentTime = 0;
-        } catch (e) {}
-        removeAudioOverlay();
       }
 
       function esc(x) {
@@ -917,7 +681,6 @@
 
         if (stage === "question") {
           cancelTimerRaf();
-          stopVotingAudio();
           const wrapClass = state.currentQuestion && state.currentQuestion.answerType === 'single' ? 'single-center' : '';
           el.innerHTML = `${header}<div id="questionArea" class="${wrapClass}">${renderQuestion(state.currentQuestion, false)}</div>`;
           lastStage = stage;
@@ -929,7 +692,6 @@
         // the need for an explicit admin confirmation step on the audience page.
         if (stage === "review") {
           cancelTimerRaf();
-          stopVotingAudio();
           const wrapClass = state.currentQuestion && state.currentQuestion.answerType === 'single' ? 'single-center' : '';
           el.innerHTML = `${header}<div id="questionArea" class="${wrapClass}">${renderQuestion(state.currentQuestion, true, state.latestResult)}</div>`;
           lastStage = stage;
@@ -958,14 +720,6 @@
             const wrapClass = state.currentQuestion && state.currentQuestion.answerType === 'single' ? 'single-center' : '';
             el.innerHTML = `${header}<div id="questionArea" class="${wrapClass}">${questionHtml}</div>${timer}`;
             startTimerLoop(totalMs);
-            startVotingAudio();
-            try {
-              // If we don't have an allowed flag, show the enable button so
-              // users who refreshed can grant audio quickly.
-              if (localStorage.getItem('quizAudioAllowed') !== '1') {
-                showEnableBtn();
-              }
-            } catch (e) {}
           } else {
             // already in voting: update header and question only, keep timer DOM intact
             const headerEl = document.getElementById("headerMeta");
@@ -981,7 +735,6 @@
         if (stage === "collecting") {
           // During collecting we keep showing the same question (short submit window).
           cancelTimerRaf();
-          stopVotingAudio();
           el.innerHTML = `${header}${renderQuestion(state.currentQuestion, false)}`;
           lastStage = stage;
           return;
@@ -989,14 +742,12 @@
 
         if (stage === "reveal") {
           cancelTimerRaf();
-          stopVotingAudio();
           el.innerHTML = `${header}${renderQuestion(state.currentQuestion, true, state.latestResult)}`;
           lastStage = stage;
           return;
         }
 
         if (stage === "finished") {
-          stopVotingAudio();
           const lr = state.latestResult || { correctCount: 0, incorrectCount: 0, timeoutCount: 0 };
           const all = Array.isArray(state.leaderboard) ? state.leaderboard : [];
           const leaders = stage === "finished" ? all : [];
@@ -1079,46 +830,10 @@
         setInterval(() => {
           refreshState().catch(() => {});
         }, POLL_MS);
-        // no audio toggle; audio will be unmuted and played once on voting start
       }
 
       boot();
 
-      // Invisible gesture listener: try to unblock audio on the first
-      // natural user gesture (click/touch/keydown). This uses the real
-      // user gesture to satisfy autoplay policies and helps after refresh.
-      (function setupGestureUnblock() {
-        const handler = function (ev) {
-          try {
-              console.info && console.info('gesture detected, attempting to unblock audio', ev && ev.type);
-              const a = createVoteAudio();
-              // Prime the audio silently: keep it muted/0 volume so the gesture
-              // doesn't produce audible playback. Later, when voting starts,
-              // `startVotingAudio()` will unmute and set volume to 1.
-              try { a.muted = true; a.volume = 0; a.currentTime = 0; } catch (e) {}
-              const p = a.play && a.play();
-            if (p && typeof p.then === 'function') {
-              p.then(() => {
-                try { a.dataset.primed = '1'; } catch (e) {}
-                try { localStorage.setItem('quizAudioAllowed', '1'); } catch (e) {}
-                console.info && console.info('audio unblocked by gesture');
-              }).catch((err) => {
-                console.info && console.info('gesture play rejected', err);
-              });
-            }
-          } catch (err) {
-            console.info && console.info('gesture unblock error', err);
-          }
-        };
-
-        try {
-          document.addEventListener('pointerdown', handler, { once: true, capture: true });
-          document.addEventListener('touchstart', handler, { once: true, capture: true });
-          document.addEventListener('keydown', handler, { once: true, capture: true });
-        } catch (e) {
-          // ignore
-        }
-      })();
     </script>
   </body>
 </html>
