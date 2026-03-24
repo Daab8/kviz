@@ -128,6 +128,10 @@
         border-color: #89d3a3;
         background: #e9f9ee;
       }
+      .answer.incorrect {
+        border-color: #fca5a5;
+        background: #fff0f0;
+      }
       
       .muted {
         color: #5f6770;
@@ -638,13 +642,27 @@
 
         const answersHtml = answersForRender.map((a, idx) => {
           const id = String(a.id || "").toUpperCase();
-          const isCorrect = isOrderingReveal ? true : (reveal && correct.has(id));
           const label = `${id}.`;
           const count = Number(voteCounts[id] || 0);
           const pct = totalResponders > 0 ? Math.min(100, Math.max(0, (count / totalResponders) * 100)) : 0;
+
+          // Ordering reveal: do not color answers or show per-answer bars/percents.
+          if (isOrderingReveal) {
+            const fillHtml = "";
+            return `<div class="answer"><div class="answer-fill-wrap">${fillHtml}</div><div class="answer-content"><strong>${esc(label)}</strong> ${esc(a.text)}</div></div>`;
+          }
+
+          const isCorrect = reveal && correct.has(id);
+          // When revealing single/multiple answers: mark correct vs incorrect for ALL answers
+          // (incorrect even if they received no votes).
+          const cls = reveal ? (isCorrect ? "correct" : "incorrect") : (isCorrect ? "correct" : "");
+
+          // Show visual fill on reveal (colored bar), but do NOT show the numeric percent inside the answer
+          // fields when reveal is active (percentages are shown in the vote breakdown instead).
           const fillColor = isCorrect ? "rgba(16,185,129,0.28)" : "rgba(220,38,38,0.22)";
           const fillHtml = reveal ? `<div class="answer-fill" style="width:${pct}%;background:${fillColor};"></div>` : "";
-          return `<div class="answer ${isCorrect ? "correct" : ""}"><div class="answer-fill-wrap">${fillHtml}</div><div class="answer-content"><strong>${esc(label)}</strong> ${esc(a.text)}</div>${reveal ? `<div class="answer-percent">${pct.toFixed(1)}%</div>` : ""}</div>`;
+
+          return `<div class="answer ${cls}"><div class="answer-fill-wrap">${fillHtml}</div><div class="answer-content"><strong>${esc(label)}</strong> ${esc(a.text)}</div></div>`;
         }).join("");
 
         const hasRevealDescription = reveal && String(q.description || "").trim();
@@ -872,7 +890,10 @@
         }
 
         if (stage === "finished") {
-          const lr = state.latestResult || { correctCount: 0, incorrectCount: 0, timeoutCount: 0 };
+          // For final view show aggregated quiz totals; fall back to latestResult if totals missing
+          const lr = (state.totalStats && (typeof state.totalStats.correctCount !== 'undefined'))
+            ? state.totalStats
+            : (state.latestResult || { correctCount: 0, incorrectCount: 0, timeoutCount: 0 });
           const all = Array.isArray(state.leaderboard) ? state.leaderboard : [];
           const leaders = stage === "finished" ? all : [];
           const insights = state.finalInsights || {};

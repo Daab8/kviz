@@ -815,7 +815,13 @@ function finalizeRound() {
     ...(Array.isArray(round.expectedResponderIds) ? round.expectedResponderIds : []),
     ...Object.keys(round.selections || {}),
     ...Object.keys(round.submitted || {}),
-  ])).filter((id) => isGamepadClientId(id));
+  ])).filter((id) => {
+    if (!isGamepadClientId(id)) return false;
+    if (!gamepads.has(id)) return false; // exclude deleted/unknown gamepads
+    const g = gamepads.get(id);
+    // Only count currently connected gamepads (admin-hidden or disconnected are excluded)
+    return Boolean(g && g.connected);
+  });
 
   const results = [];
   let correctCount = 0;
