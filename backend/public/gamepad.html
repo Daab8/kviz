@@ -111,7 +111,7 @@
           setStatus('connecting…');
           const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + WS_PATH;
           try {
-            client = mqtt.connect(url, { clientId: gpId, clean: false, reconnectPeriod: 0 });
+            client = mqtt.connect(url, { clientId: gpId, clean: true, reconnectPeriod: 0 });
           } catch (e) { setStatus('connect-failed'); scheduleReconnect(); return; }
 
           client.on('connect', () => {
