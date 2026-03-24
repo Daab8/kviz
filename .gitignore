@@ -30,6 +30,4 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# OTA
-# OTA
-# Keep the ota folder ignored by Git.
+ota/
