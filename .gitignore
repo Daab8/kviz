@@ -31,6 +31,5 @@ ENV/
 Thumbs.db
 
 # OTA
-# Keep the ota folder tracked in Git. Un-ignore it explicitly.
-!backend/public/ota/
-!backend/public/ota/**
+# OTA
+# Keep the ota folder ignored by Git.
