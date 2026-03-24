@@ -62,6 +62,11 @@
       button {
         cursor: pointer;
       }
+      .disabled-timer {
+        opacity: 0.6;
+        filter: grayscale(40%);
+        cursor: not-allowed;
+      }
       .primary {
         background: var(--accent);
         color: #fff;
@@ -267,6 +272,7 @@
       const editMode = new Set();
       let state = null;
       let lastAdminStage = null;
+      let nextDisableUntil = 0;
       let autoPilotActive = false;
       let autoPilotTimer = null;
 
@@ -405,22 +411,34 @@
           ui.autoPilotBtn.style.display = (stage !== 'idle') ? 'inline-block' : 'inline-block';
         } catch (e) {}
 
-        ui.nextBtn.textContent = nextLabel(stage, s.currentQuestion, s.questionIndex, s.totalQuestions);
-        ui.nextBtn.disabled = ["idle", "voting", "collecting", "finished"].includes(stage);
-        ui.nextBtn.style.display = ["idle", "voting", "collecting", "finished"].includes(stage) ? "none" : "inline-block";
+        const baseNextDisabled = ["idle", "voting", "collecting", "finished"].includes(stage);
+        // If a disable-until timestamp is set, keep button disabled until then
+        const timeDisabled = Date.now() < (nextDisableUntil || 0) && stage === 'question';
+        ui.nextBtn.disabled = baseNextDisabled || timeDisabled;
+        ui.nextBtn.style.display = baseNextDisabled ? "none" : "inline-block";
 
-        // If we just transitioned into the 'question' stage, prevent the
-        // admin from immediately starting voting by disabling the Next button
-        // for 5 seconds. This avoids accidental rapid starts after showing
-        // the question. Re-enable only if still in 'question' stage.
+        // Compute label and show remaining seconds while timeDisabled
+        try {
+          const baseLabel = nextLabel(stage, s.currentQuestion, s.questionIndex, s.totalQuestions);
+          if (timeDisabled) {
+            const msLeft = Math.max(0, (nextDisableUntil || 0) - Date.now());
+            const secLeft = Math.ceil(msLeft / 1000);
+            ui.nextBtn.textContent = `${baseLabel} (${secLeft}s)`;
+            ui.nextBtn.classList.add('disabled-timer');
+          } else {
+            ui.nextBtn.textContent = baseLabel;
+            ui.nextBtn.classList.remove('disabled-timer');
+          }
+        } catch (e) {}
+
+        // When we detect a transition into 'question' stage, set a disable
+        // timestamp for 5s so renders / state refreshes cannot re-enable it
+        // prematurely.
         try {
           if (stage === 'question' && lastAdminStage !== 'question') {
+            nextDisableUntil = Date.now() + 5000;
             ui.nextBtn.disabled = true;
-            setTimeout(() => {
-              try {
-                if (state && state.stage === 'question') ui.nextBtn.disabled = false;
-              } catch (e) {}
-            }, 5000);
+            ui.nextBtn.classList.add('disabled-timer');
           }
         } catch (e) {}
         ui.prevBtn.disabled = ["idle", "welcome", "voting", "collecting", "finished"].includes(stage);
@@ -658,6 +676,16 @@
 
       ui.nextBtn.addEventListener("click", async () => {
         try {
+          // If admin is showing the question (welcome -> question),
+          // immediately disable the Next button for 5s to avoid a
+          // rapid second click that would start voting too soon.
+          try {
+            if (state && state.stage === 'welcome') {
+              nextDisableUntil = Date.now() + 5000;
+              ui.nextBtn.disabled = true;
+            }
+          } catch (e) {}
+
           // Turn off identify display when advancing to show question/reveal
           try {
             await api("/api/session/identify-display", {

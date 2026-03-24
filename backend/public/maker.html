@@ -685,6 +685,108 @@
       border: 0;
     }
 
+    .image-drop-zone {
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      padding: 0.5rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: flex-start;
+      background: transparent;
+      transition: background 0.12s ease, border-color 0.12s ease;
+    }
+
+    .image-row-inner {
+      display: flex;
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+
+    .image-drop-zone {
+      min-height: 140px;
+      min-width: 160px;
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .image-drop-zone .img-preview {
+      display: none;
+      max-width: 100%;
+      max-height: 160px;
+      border-radius: 8px;
+    }
+
+    .image-drop-zone .img-preview.show {
+      display: block;
+    }
+
+    .image-actions {
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      align-self: stretch;
+      padding-left: 0.5rem;
+    }
+
+    /* mobile-only duplicate save button (hidden by default, shown in media query) */
+    .save-mobile { display: none; }
+
+    .image-actions button {
+      margin-top: auto;
+    }
+
+    .image-drop-zone.drag-over {
+      background: linear-gradient(90deg, rgba(14,165,233,0.06), rgba(0,0,0,0));
+      border-color: var(--accent-2);
+    }
+
+    @media (max-width: 640px) {
+      .image-row-inner {
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+      .image-drop-zone {
+        width: 100%;
+        align-items: center;
+      }
+      .image-drop-zone .muted {
+        font-size: 0.88rem;
+        text-align: center;
+      }
+      .image-actions {
+        width: 100%;
+        justify-content: stretch;
+      }
+      .image-actions button {
+        width: 100%;
+      }
+      .image-drop-zone .img-preview {
+        max-width: 90%;
+        max-height: 36vw;
+      }
+      /* allow drop zone to grow with image preview and prevent clipping on mobile */
+      .image-drop-zone {
+        padding-bottom: 2rem;
+        min-height: auto;
+        overflow: visible;
+      }
+      .image-actions {
+        margin-top: 1rem;
+      }
+      .save-mobile { display: block; }
+      /* prevent overlap of the save button on mobile by ensuring container reserves space */
+      .image-row-inner {
+        align-items: stretch;
+      }
+    }
+
     .img-preview {
       margin-top: 0.5rem;
       max-width: 220px;
@@ -1062,6 +1164,19 @@
         align-items: flex-start;
       }
 
+      /* prevent overlap of the save button on mobile by ensuring container reserves space */
+      .image-drop-zone {
+        padding-bottom: 2rem;
+        min-height: auto;
+        overflow: visible;
+      }
+      .image-actions {
+        margin-top: 0.5rem;
+        position: static;
+      }
+      .image-actions button {
+        position: static;
+      }
       .image-actions-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -1236,6 +1351,10 @@
           </div>
         </div>
 
+        <div class="save-mobile" style="display:none;margin-top:0.6rem">
+          <button type="submit" id="saveQuestionBtnMobile" class="btn-primary" style="width:100%">Uložiť otázku</button>
+        </div>
+
         <div class="field">
           <div class="label-row">
             <label>Odpovede</label>
@@ -1260,15 +1379,22 @@
           </div>
         </div>
 
-        <div class="field">
+        <div class="field image-row">
           <label>Obrázok k otázke (voliteľné)</label>
-          <div class="split image-actions-row">
-            <label class="pseudo-btn btn-secondary" for="imageInput">Vybrať obrázok</label>
-            <input id="imageInput" class="file-input-hidden" type="file" accept="image/*">
-            <button id="removeImageBtn" type="button" class="btn-secondary">Odstrániť obrázok</button>
-            <button type="submit" id="saveQuestionBtn" class="btn-primary save-right">Uložiť otázku</button>
+          <div class="image-row-inner">
+            <div id="imageDropZone" class="image-drop-zone" role="button" tabindex="0" aria-label="Vybrať alebo pretiahnuť obrázok">
+              <input id="imageInput" class="file-input-hidden" type="file" accept="image/*">
+                <div class="drop-content" style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;width:100%;padding:0.25rem">
+                  <span class="muted" style="font-size:0.9rem">Pretiahnite sem obrázok alebo kliknite sem</span>
+                  <img id="imagePreview" class="img-preview" alt="Náhľad obrázka otázky" />
+                    <button id="removeImageBtn" type="button" class="btn-secondary" style="display:none;margin-top:0.5rem">Odstrániť obrázok</button>
+                </div>
+            </div>
+
+            <div class="image-actions">
+              <button type="submit" id="saveQuestionBtn" class="btn-primary" style="white-space:nowrap">Uložiť otázku</button>
+            </div>
           </div>
-          <img id="imagePreview" class="img-preview" alt="Náhľad obrázka otázky" />
         </div>
       </form>
     </section>
@@ -1422,8 +1548,10 @@
       categorySelect: document.getElementById("categorySelect"),
       newCategory: document.getElementById("newCategory"),
       imageInput: document.getElementById("imageInput"),
+      imageDropZone: document.getElementById("imageDropZone"),
       imagePreview: document.getElementById("imagePreview"),
       saveQuestionBtn: document.getElementById("saveQuestionBtn"),
+      saveQuestionBtnMobile: document.getElementById("saveQuestionBtnMobile"),
       removeImageBtn: document.getElementById("removeImageBtn"),
       headerSaveBtn: document.getElementById("headerSaveBtn"),
       headerImportInput: document.getElementById("headerImportInput"),
@@ -2319,13 +2447,39 @@
       });
     }
 
+    async function handleImageFile(file) {
+      if (!file) return;
+      if (!file.type || !file.type.startsWith("image/")) {
+        alert("Povoľené sú len obrázkové súbory.");
+        return;
+      }
+      if (file.size > MAX_IMAGE_SIZE_BYTES) {
+        alert("Obrázok je príliš veľký. Maximálna veľkosť je 512 KB.");
+        return;
+      }
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        el.imageInput.files = dt.files;
+        const dataUrl = await readImageAsDataUrl(file);
+        setImagePreview(dataUrl);
+        markUnsavedChanges();
+        updateSaveButtonState();
+      } catch (err) {
+        alert(err.message || "Chyba pri načítaní obrázka.");
+      }
+    }
+
     function setImagePreview(dataUrl) {
       if (dataUrl) {
         el.imagePreview.src = dataUrl;
         el.imagePreview.classList.add("show");
+        if (el.removeImageBtn) el.removeImageBtn.style.display = "";
       } else {
         el.imagePreview.removeAttribute("src");
         el.imagePreview.classList.remove("show");
+        if (el.removeImageBtn) el.removeImageBtn.style.display = "none";
+        if (el.imageInput) el.imageInput.value = "";
       }
     }
 
@@ -2391,10 +2545,24 @@
         el.saveQuestionBtn.classList.add("btn-soft-disabled");
         el.saveQuestionBtn.setAttribute("aria-disabled", "true");
         el.saveQuestionBtn.title = err;
+        if (el.saveQuestionBtnMobile) {
+          el.saveQuestionBtnMobile.classList.add("btn-soft-disabled");
+          el.saveQuestionBtnMobile.setAttribute("aria-disabled", "true");
+          el.saveQuestionBtnMobile.title = err;
+          el.saveQuestionBtnMobile.disabled = true;
+        }
+        el.saveQuestionBtn.disabled = true;
       } else {
         el.saveQuestionBtn.classList.remove("btn-soft-disabled");
         el.saveQuestionBtn.removeAttribute("aria-disabled");
         el.saveQuestionBtn.removeAttribute("title");
+        if (el.saveQuestionBtnMobile) {
+          el.saveQuestionBtnMobile.classList.remove("btn-soft-disabled");
+          el.saveQuestionBtnMobile.removeAttribute("aria-disabled");
+          el.saveQuestionBtnMobile.removeAttribute("title");
+          el.saveQuestionBtnMobile.disabled = false;
+        }
+        el.saveQuestionBtn.disabled = false;
       }
     }
 
@@ -2469,6 +2637,7 @@
       renderAnswerInputs();
       setImagePreview(null);
       el.saveQuestionBtn.textContent = "Uložiť otázku";
+      if (el.saveQuestionBtnMobile) el.saveQuestionBtnMobile.textContent = "Uložiť otázku";
       el.newCategory.value = "";
       el.categorySelect.value = MIX_CATEGORY_ID;
       el.shuffleAnswers.checked = true;
@@ -2517,6 +2686,7 @@
       }
       setImagePreview(q.imageDataUrl || null);
       el.saveQuestionBtn.textContent = "Uložiť zmeny otázky";
+      if (el.saveQuestionBtnMobile) el.saveQuestionBtnMobile.textContent = "Uložiť zmeny otázky";
       updateSaveButtonState();
       switchTab("tab-create");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2966,6 +3136,34 @@
         }
       });
 
+      if (el.imageDropZone) {
+        const prevent = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+        el.imageDropZone.addEventListener("dragenter", (ev) => { prevent(ev); el.imageDropZone.classList.add("drag-over"); });
+        el.imageDropZone.addEventListener("dragover", (ev) => { prevent(ev); el.imageDropZone.classList.add("drag-over"); });
+        el.imageDropZone.addEventListener("dragleave", (ev) => { prevent(ev); el.imageDropZone.classList.remove("drag-over"); });
+        el.imageDropZone.addEventListener("drop", async (ev) => {
+          prevent(ev);
+          el.imageDropZone.classList.remove("drag-over");
+          const file = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+          if (file) {
+            await handleImageFile(file);
+          }
+        });
+        el.imageDropZone.addEventListener("click", (ev) => {
+          // if click originated on the remove button, ignore and let its handler run
+          if (ev.target.closest && ev.target.closest('#removeImageBtn')) return;
+          // forward click to hidden file input
+          el.imageInput.click();
+        });
+        el.imageDropZone.addEventListener("keydown", (ev) => {
+          if (ev.key === 'Enter' || ev.key === ' ') {
+            ev.preventDefault();
+            if (ev.target.closest && ev.target.closest('#removeImageBtn')) return;
+            el.imageInput.click();
+          }
+        });
+      }
+
       el.filterCategory.addEventListener("change", renderQuestions);
       el.searchBox.addEventListener("input", renderQuestions);
       el.openCreateFromManage.addEventListener("click", () => switchTab("tab-create"));
@@ -3143,7 +3341,8 @@
       }
       try {
         const parsed = JSON.parse(raw);
-        warnIfVersionMismatch(parsed, "lokálne uložené dáta");
+        // Pri automatickom načítaní z localStorage neukazujeme varovanie o verzii,
+        // nechajme ho iba pri explicitnom importe súboru.
         applyLoadedData(parsed);
         refreshUI();
         state.hasUnsavedChanges = false;
