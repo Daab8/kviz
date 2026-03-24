@@ -187,11 +187,6 @@ def tm_write_all(pattern):
 def display_clear():
     tm_write_all(0x00)
 
-
-def display_dashes():
-    display_clear()
-
-
 def gamepad_id_suffix(gamepad_id):
     if not gamepad_id:
         return "----"
@@ -372,7 +367,7 @@ _mqtt_client_ref = {"client": None, "submit_topic": "", "gamepad_id": ""}
 
 def display_identify_number():
     if identify_number is None:
-        display_dashes()
+        display_clear()
         return
     display_number(identify_number)
 
@@ -481,7 +476,7 @@ def apply_button_input(button_label):
     if button_label == "R":
         if has_vote():
             clear_selection()
-            display_dashes()
+            display_clear()
         return
 
     if button_label not in ["A", "B", "C", "D"]:
@@ -507,9 +502,7 @@ def apply_button_input(button_label):
     if has_vote():
         render_selection_display()
     else:
-        display_dashes()
-
-
+        display_clear()
 def handle_control_message(data):
     global current_phase, current_question_id, current_answer_type, identify_display_enabled, identify_number
     global flash_blue, flash_led_on
@@ -554,9 +547,9 @@ def handle_control_message(data):
             if identify_display_enabled:
                 display_identify_number()
             elif current_phase == "collecting":
-                render_selection_display() if has_vote() else display_dashes()
+                render_selection_display() if has_vote() else display_clear()
             else:
-                display_dashes()
+                display_clear()
         return
 
     if msg_type == "phase":
@@ -582,7 +575,7 @@ def handle_control_message(data):
             clear_selection()
             flash_blue = True
             flash_led_on = True
-            display_dashes()
+            display_clear()
             set_led_rgb(0, 0, 255)
         elif phase == "collecting":
             flash_blue = False
@@ -591,7 +584,7 @@ def handle_control_message(data):
             if identify_display_enabled:
                 display_identify_number()
             else:
-                render_selection_display() if has_vote() else display_dashes()
+                render_selection_display() if has_vote() else display_clear()
         elif phase in ["question", "welcome", "idle"]:
             clear_selection()
             flash_blue = False
@@ -600,7 +593,7 @@ def handle_control_message(data):
             if identify_display_enabled:
                 display_identify_number()
             else:
-                display_dashes()
+                display_clear()
         elif phase in ["review", "reveal"]:
             # Keep last result feedback (LED + points) visible until a new question/welcome arrives.
             flash_blue = False
@@ -683,13 +676,6 @@ def update_voting_led():
     if current_phase != "voting":
         return
 
-    # For single-choice questions, first valid vote means input is effectively final.
-    # For multiple/ordering, keep blue LED on so player knows they can still modify/extend selection.
-    if has_vote() and current_answer_type == "single":
-        flash_led_on = False
-        set_led_rgb(0, 0, 0)
-        return
-
     if not flash_led_on:
         flash_led_on = True
         set_led_rgb(0, 0, 255)
@@ -701,7 +687,7 @@ def show_disconnected_led():
 
 
 def show_disconnected_feedback():
-    display_dashes()
+    display_clear()
     show_disconnected_led()
 
 
@@ -709,12 +695,12 @@ def main():
     maybe_enter_brownout_safety_sleep()
 
     tm_init()
-    display_dashes()
+    display_clear()
     set_led_rgb(0, 0, 0)
 
     sta_if = network.WLAN(network.STA_IF)
     gamepad_id = build_gamepad_id(sta_if)
-    display_dashes()
+    display_clear()
 
     mqtt_client = None
     active_mqtt_broker = None
@@ -737,7 +723,7 @@ def main():
                 continue
 
         try:
-            wifi_profile = connect_wifi(sta_if, on_wait=show_disconnected_feedback)
+            connect_wifi(sta_if, on_wait=show_disconnected_feedback)
             # Derive broker from the connected interface's subnet (.1).
             target_mqtt_broker = None
             try:

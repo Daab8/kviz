@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="sk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quiz Admin</title>
+    <style>
+      :root {
+        --bg: #f8f7f2;
+        --card: #ffffff;
+        --line: #d8d7cd;
+        --ink: #1b2430;
+        --muted: #5f6975;
+        --ok: #157c40;
+        --bad: #b93131;
+        --accent: #0a4fb3;
+      }
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+        background: radial-gradient(circle at top right, #f2f7ff, var(--bg));
+      }
+      .wrap {
+        max-width: 1220px;
+        margin: 0 auto;
+        padding: 14px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+      }
+      h1 {
+        margin: 0 0 6px;
+      }
+      h2 {
+        margin: 0 0 10px;
+        font-size: 1.1rem;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .tiny {
+        font-size: 0.82rem;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      input,
+      select,
+      button {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 0.95rem;
+      }
+      button {
+        cursor: pointer;
+      }
+      .disabled-timer {
+        opacity: 0.6;
+        filter: grayscale(40%);
+        cursor: not-allowed;
+      }
+      .primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: #0a3e89;
+      }
+      .warn {
+        background: #fff4f4;
+        border-color: #e6b1b1;
+      }
+      /* When warn is applied together with primary (active autopilot),
+         ensure text is dark for contrast on the pale background. */
+      .primary.warn,
+      .warn.primary {
+        color: #0b1720;
+      }
+
+      /* Auto pilot button layout: inline with other controls on desktop,
+         but full-width on small screens. */
+      #autoPilotBtn {
+        margin-top: 0;
+        width: auto;
+        max-width: none;
+      }
+      .ok {
+        color: var(--ok);
+        font-weight: 600;
+      }
+      .bad {
+        color: var(--bad);
+        font-weight: 600;
+      }
+      .layout {
+        display: grid;
+        gap: 12px;
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 8px;
+        text-align: left;
+        vertical-align: middle;
+      }
+      th {
+        font-size: 0.82rem;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .pill {
+        display: inline-block;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        padding: 3px 8px;
+        font-size: 0.8rem;
+      }
+      .wifi-pill {
+        font-weight: 700;
+        color: #fff;
+        border-color: transparent;
+      }
+      .wifi-vyborne {
+        background: #1f8f43;
+      }
+      .wifi-dobre {
+        background: #9bb80e;
+        color: #1c1c1c;
+      }
+      .wifi-slabe {
+        background: #e59d22;
+        color: #1c1c1c;
+      }
+      .wifi-zle {
+        background: #c84033;
+      }
+      .wifi-nezname {
+        background: #8a9099;
+      }
+      .top-gap {
+        margin-top: 10px;
+      }
+      .row-last-correct {
+        background: #eef9f1;
+      }
+      .row-last-incorrect {
+        background: #fff1f1;
+      }
+      .row-last-timeout {
+        background: #f1f3f6;
+      }
+      .row-acknowledged {
+        background: #e6f9ee;
+      }
+
+      @media (max-width: 860px) {
+        .wrap {
+          padding: 8px;
+        }
+        th,
+        td {
+          padding: 6px;
+          font-size: 0.88rem;
+        }
+        input,
+        select,
+        button {
+          font-size: 0.9rem;
+          width: 100%;
+        }
+        .row > * {
+          flex: 1 1 100%;
+        }
+        #autoPilotBtn {
+          flex: 1 1 100%;
+          margin-top: 8px;
+        }
+        #nextBtn {
+          min-height: 3.6rem;
+          padding-top: 0.95rem;
+          padding-bottom: 0.95rem;
+          font-size: 1.05rem;
+          font-weight: 700;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Administrácia kvízu</h1>
+      <p class="muted tiny">Nahrajte JSON (kvíz alebo snapshot), spustite kvíz, ovládajte fázy a spravujte tímy.</p>
+
+      <section class="card">
+        <h2>Ovládanie relácie</h2>
+
+        <div id="setupControls" class="row">
+          <input id="dataFile" type="file" accept="application/json" />
+          <select id="quizSelect"></select>
+          <button id="startBtn" class="primary" type="button">Spustiť kvíz</button>
+        </div>
+        <div id="currentQuestion" class="row top-gap" style="flex-wrap: wrap; gap: 8px;">
+          <div class="card" style="width:100%;">
+              <h2 id="currentQuestionHeader">Aktuálna otázka</h2>
+              <div id="currentQuestionDetails" class="muted">Žiadna otázka</div>
+            </div>
+        </div>
+
+        <div class="row top-gap">
+          <button id="prevBtn" type="button">Späť</button>
+          <button id="nextBtn" class="primary" type="button">Ďalej</button>
+          <button id="identifyBtn" type="button">Čísla gamepadov na displayoch: ZAP</button>
+          <button id="endBtn" class="warn" type="button">Ukončiť kvíz teraz</button>
+          <button id="autoPilotBtn" type="button" class="primary">Auto režim</button>
+        </div>
+      </section>
+
+      <section class="card top-gap">
+        <h2>Tímy / gamepady</h2>
+        <p class="tiny muted">Stav online/offline je podľa telemetrie (ak nepríde viac než 5 sekúnd, je offline).</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Meno</th>
+                <th>Stav</th>
+                <th>WiFi</th>
+                <th>Posledná voľba</th>
+                <th>Body</th>
+                <th>Akcia</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const OFFLINE_AFTER_MS = 10000;
+      const POLL_MS = 900;
+
+      const ui = {
+        dataFile: document.getElementById("dataFile"),
+        quizSelect: document.getElementById("quizSelect"),
+        startBtn: document.getElementById("startBtn"),
+        prevBtn: document.getElementById("prevBtn"),
+        nextBtn: document.getElementById("nextBtn"),
+        identifyBtn: document.getElementById("identifyBtn"),
+        endBtn: document.getElementById("endBtn"),
+        // sessionInfo removed — question counter now shown in currentQuestionHeader
+        setupControls: document.getElementById("setupControls"),
+        rows: document.getElementById("rows"),
+        autoPilotBtn: document.getElementById("autoPilotBtn"),
+        currentQuestionDetails: document.getElementById("currentQuestionDetails"),
+      };
+
+      const drafts = new Map();
+      const editMode = new Set();
+      let state = null;
+      let lastAdminStage = null;
+      let nextDisableUntil = 0;
+      let autoPilotActive = false;
+      let autoPilotTimer = null;
+
+      function esc(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function getDraft(id) {
+        if (!drafts.has(id)) {
+          drafts.set(id, {
+            name: undefined,
+            points: undefined,
+            dirtyName: false,
+            dirtyPoints: false,
+          });
+        }
+        return drafts.get(id);
+      }
+
+      function focusSnapshot() {
+        const el = document.activeElement;
+        if (!el || !el.matches || !el.matches("input[data-kind][data-id]")) return null;
+        return {
+          id: el.dataset.id,
+          kind: el.dataset.kind,
+          start: typeof el.selectionStart === "number" ? el.selectionStart : null,
+          end: typeof el.selectionEnd === "number" ? el.selectionEnd : null,
+        };
+      }
+
+      function restoreFocus(snapshot) {
+        if (!snapshot) return;
+        const sel = `input[data-kind='${snapshot.kind}'][data-id='${snapshot.id}']`;
+        const el = ui.rows.querySelector(sel);
+        if (!el) return;
+        el.focus();
+        try {
+          if (snapshot.start != null && snapshot.end != null) {
+            el.setSelectionRange(snapshot.start, snapshot.end);
+          }
+        } catch (err) {}
+      }
+
+      function isEditingGamepadRow() {
+        const el = document.activeElement;
+        const focusedEditor = Boolean(el && el.matches && el.matches("input[data-kind][data-id]"));
+        return focusedEditor || editMode.size > 0;
+      }
+
+      async function api(path, opts) {
+        const res = await fetch(path, opts);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        return data;
+      }
+
+      function isQuizPayload(data) {
+        return data
+          && typeof data === "object"
+          && Array.isArray(data.questions)
+          && Array.isArray(data.quizzes)
+          && Array.isArray(data.categories);
+      }
+
+      function isSnapshotPayload(data) {
+        return data
+          && typeof data === "object"
+          && data.session
+          && data.quizStore;
+      }
+
+      function stageToText(stage) {
+        const map = {
+          idle: "Neaktívne",
+          welcome: "Úvod",
+          question: "Otázka",
+          voting: "Hlasovanie",
+          collecting: "Zber odpovedí",
+          review: "Správne odpovede",
+          reveal: "Správne odpovede",
+          finished: "Ukončené",
+        };
+        return map[stage] || stage;
+      }
+
+      function inProgress(stage) {
+        // Treat 'review' as not a separate busy phase in the admin UI; audience
+        // will show reveals immediately, admin only needs the 'Ďalšia otázka' button.
+        return ["welcome", "question", "voting", "collecting", "reveal"].includes(stage);
+      }
+
+      function votingSecondsForType(answerType) {
+        const type = String(answerType || "single").toLowerCase();
+        if (type === "ordering") return 20;
+        if (type === "multiple") return 15;
+        return 10;
+      }
+
+      function nextLabel(stage, currentQuestion, questionIndex, totalQuestions) {
+        if (stage === "welcome") return "Zobraziť otázku";
+        if (stage === "question") {
+          const sec = votingSecondsForType(currentQuestion && currentQuestion.answerType);
+          return `Spustiť hlasovanie (${sec}s)`;
+        }
+        if (stage === "review") return "Ďalšia otázka";
+        if (stage === "reveal") return "Ďalšia otázka";
+        if (stage === "finished") return "Kvíz ukončený";
+        return "Ďalej";
+      }
+
+      function renderSession() {
+        const s = state || {};
+        const stage = s.stage || "idle";
+        const qNum = Number(s.questionIndex || 0) + 1;
+        const total = Number(s.totalQuestions || 0);
+        // Show the question counter next to the 'Aktuálna otázka' header
+        try {
+          const hdr = document.getElementById('currentQuestionHeader');
+          if (hdr) hdr.innerHTML = `Aktuálna otázka <span class="muted" style="font-weight:400; margin-left:8px; font-size:0.95rem;">${qNum}/${total}</span>`;
+        } catch (e) {}
+
+        // Always show the setup controls container, but toggle individual
+        // controls so 'Spustiť kvíz' only appears when session is idle (or
+        // finished) and 'Auto režim' is available whenever a quiz is started.
+        ui.setupControls.style.display = "flex";
+        try {
+          const isIdle = (stage === 'idle');
+          const isFinished = (stage === 'finished');
+          ui.startBtn.style.display = (isIdle || isFinished) ? 'inline-block' : 'none';
+          // Auto mode available whenever session is not idle
+          ui.autoPilotBtn.style.display = (stage !== 'idle') ? 'inline-block' : 'inline-block';
+        } catch (e) {}
+
+        const baseNextDisabled = ["idle", "voting", "collecting", "finished"].includes(stage);
+        // If a disable-until timestamp is set, keep button disabled until then
+        const timeDisabled = Date.now() < (nextDisableUntil || 0) && stage === 'question';
+        ui.nextBtn.disabled = baseNextDisabled || timeDisabled;
+        ui.nextBtn.style.display = baseNextDisabled ? "none" : "inline-block";
+
+        // Compute label and show remaining seconds while timeDisabled
+        try {
+          const baseLabel = nextLabel(stage, s.currentQuestion, s.questionIndex, s.totalQuestions);
+          if (timeDisabled) {
+            const msLeft = Math.max(0, (nextDisableUntil || 0) - Date.now());
+            const secLeft = Math.ceil(msLeft / 1000);
+            ui.nextBtn.textContent = `${baseLabel} (${secLeft}s)`;
+            ui.nextBtn.classList.add('disabled-timer');
+          } else {
+            ui.nextBtn.textContent = baseLabel;
+            ui.nextBtn.classList.remove('disabled-timer');
+          }
+        } catch (e) {}
+
+        // When we detect a transition into 'question' stage, set a disable
+        // timestamp for 5s so renders / state refreshes cannot re-enable it
+        // prematurely.
+        try {
+          if (stage === 'question' && lastAdminStage !== 'question') {
+            nextDisableUntil = Date.now() + 5000;
+            ui.nextBtn.disabled = true;
+            ui.nextBtn.classList.add('disabled-timer');
+          }
+        } catch (e) {}
+        ui.prevBtn.disabled = ["idle", "welcome", "voting", "collecting", "finished"].includes(stage);
+        const identifyOn = Boolean(s.identifyDisplayEnabled);
+        ui.identifyBtn.textContent = identifyOn
+          ? "Čísla gamepadov na displayoch: ZAP"
+          : "Čísla gamepadov na displayoch: VYP";
+        ui.endBtn.style.display = inProgress(stage) ? "inline-block" : "none";
+
+        const q = s.currentQuestion;
+        if (q && q.id) {
+          const t = String(q.answerType || "single");
+          const typeLabel = t === "multiple" ? "Viac odpovedí" : t === "ordering" ? "Zoradenie" : "Jedna odpoveď";
+          const pointsNum = Number.isFinite(Number(q.points)) ? Number(q.points) : 1;
+          function pluralPoints(n) {
+            const mod100 = n % 100;
+            const mod10 = n % 10;
+            if (mod100 >= 11 && mod100 <= 14) return `${n} bodov`;
+            if (mod10 === 1) return `${n} bod`;
+            if (mod10 >= 2 && mod10 <= 4) return `${n} body`;
+            return `${n} bodov`;
+          }
+          const pointsText = pluralPoints(pointsNum);
+
+          const answersHtml = Array.isArray(q.answers) && q.answers.length
+            ? `${q.answers.map((a) => `<div style="margin:6px 0;"><strong>${esc(String(a.id || '').toUpperCase())}.</strong> ${esc(a.text)}</div>`).join("")}`
+            : "<p class=\"muted\">Žiadne odpovede</p>";
+
+          ui.currentQuestionDetails.innerHTML = `
+            <div style="font-size:1.05rem;margin-bottom:6px;">${esc(q.text || "-")}</div>
+            <div style="font-weight:700;margin-bottom:6px;">${esc(typeLabel)} &nbsp; | &nbsp; ${esc(pointsText)}</div>
+            ${answersHtml}
+          `;
+        } else {
+          ui.currentQuestionDetails.innerHTML = "Žiadna otázka";
+        }
+        // remember last rendered stage so we can detect transitions
+        try { lastAdminStage = stage; } catch (e) {}
+      }
+
+      function isGamepadOnline(g) {
+        const telemetryLastSeen = typeof g.lastTelemetryAt === "number" ? g.lastTelemetryAt : null;
+        if (Boolean(g.connected)) return true;
+        if (typeof telemetryLastSeen !== "number") return false;
+        return (Date.now() - telemetryLastSeen) <= OFFLINE_AFTER_MS;
+      }
+
+      function wifiSignalInfo(rssiDbm) {
+        if (!Number.isFinite(rssiDbm)) {
+          return {
+            label: "Nezname",
+            cls: "wifi-nezname",
+            title: "WiFi signal: nezname",
+          };
+        }
+
+        const rssi = Number(rssiDbm);
+        if (rssi >= -60) {
+          return {
+            label: "Vyborné",
+            cls: "wifi-vyborne",
+            title: `WiFi signal: vyborné (${rssi} dBm)`,
+          };
+        }
+        if (rssi >= -70) {
+          return {
+            label: "Dobré",
+            cls: "wifi-dobre",
+            title: `WiFi signal: dobré (${rssi} dBm)`,
+          };
+        }
+        if (rssi >= -80) {
+          return {
+            label: "Slabé",
+            cls: "wifi-slabe",
+            title: `WiFi signal: slabé (${rssi} dBm)`,
+          };
+        }
+        return {
+          label: "Zlé",
+          cls: "wifi-zle",
+          title: `WiFi signal: zlé (${rssi} dBm)`,
+        };
+      }
+
+      function renderGamepads() {
+        const fs = focusSnapshot();
+        const list = (state && state.gamepads) ? state.gamepads : [];
+
+        const ids = new Set(list.map((x) => x.id));
+        for (const id of drafts.keys()) {
+          if (!ids.has(id)) drafts.delete(id);
+        }
+        for (const id of editMode.keys ? editMode.keys() : []) {
+          if (!ids.has(id)) editMode.delete(id);
+        }
+
+        ui.rows.innerHTML = list.map((g) => {
+          const online = isGamepadOnline(g);
+          const statusText = online ? "Online" : "Offline";
+          const statusCls = online ? "ok" : "bad";
+          const rssi = Number.isFinite(g.rssiDbm) ? g.rssiDbm : null;
+          const signal = wifiSignalInfo(rssi);
+
+          const d = getDraft(g.id);
+          const editing = editMode.has(g.id);
+          const gpNum = Number(g.gamepadNumber || 0);
+          const gpNumLabel = gpNum > 0 ? String(gpNum) : "?";
+
+          const nameValue = d.dirtyName ? d.name : (g.name || g.id);
+          const pointsValue = d.dirtyPoints ? d.points : Number(g.points || 0);
+          const hasDirty = d.dirtyName || d.dirtyPoints;
+
+          const nameCell = editing
+            ? `<input data-kind="name" data-id="${g.id}" value="${esc(nameValue)}" />`
+            : `<strong>${esc(g.name || g.id)}</strong>`;
+
+          const pointsCell = editing
+            ? `<input data-kind="points" data-id="${g.id}" type="number" min="0" value="${esc(pointsValue)}" style="width:84px" />`
+            : `<span class="pill">${Number(g.points || 0)}</span>`;
+
+          const ackBtn = g.lastResult && !g.lastResult.correct ? `<button data-action="ack-gp" data-id="${g.id}" class="primary">Uznať</button>` : "";
+          const actionBtn = editing
+            ? `<button data-action="save-gp" data-id="${g.id}" class="primary">${hasDirty ? "Uložiť*" : "Uložiť"}</button>`
+            : `${[
+              `<button data-action="edit-gp" data-id="${g.id}">Upraviť</button>`,
+              ackBtn,
+              online ? "" : `<button data-action="delete-gp" data-id="${g.id}" class="warn">Vymazať</button>`,
+            ].filter(Boolean).join(" ")}`;
+
+          let rowClass = "";
+          if (g.lastResult) {
+            if (g.lastResult.timedOut) {
+              rowClass = "row-last-timeout";
+            } else if (g.lastResult.correct) {
+              rowClass = "row-last-correct";
+            } else {
+              rowClass = "row-last-incorrect";
+            }
+          }
+
+          return `<tr class="${rowClass}">
+            <td><span class="pill">${esc(gpNumLabel)}</span></td>
+            <td>${nameCell}</td>
+            <td class="${statusCls}">${statusText}</td>
+            <td><span class="pill wifi-pill ${signal.cls}" title="${esc(signal.title)}">${signal.label}</span></td>
+            <td>${(g.lastSelection || []).join(" ") || "-"}</td>
+            <td>${pointsCell}</td>
+            <td>${actionBtn}</td>
+          </tr>`;
+        }).join("");
+
+        restoreFocus(fs);
+      }
+
+      async function refreshQuizzes() {
+        const data = await api("/api/quizzes");
+        const quizzes = data.quizzes || [];
+        ui.quizSelect.innerHTML = quizzes
+          .map((q) => `<option value="${q.id}">${esc(q.name)} (${q.totalQuestions})</option>`)
+          .join("");
+      }
+
+      async function refreshState() {
+        state = await api("/api/state");
+        renderSession();
+        if (!isEditingGamepadRow()) {
+          renderGamepads();
+        }
+      }
+
+      ui.dataFile.addEventListener("change", async () => {
+        try {
+          const file = ui.dataFile.files[0];
+          if (!file) return;
+
+          const text = await file.text();
+          const json = JSON.parse(text);
+
+          if (isQuizPayload(json)) {
+            await api("/api/quiz/load", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(json),
+            });
+          } else if (isSnapshotPayload(json)) {
+            await api("/api/session/restore-file", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(json),
+            });
+          } else {
+            throw new Error("Neznámy JSON formát. Nahrajte kvíz alebo snapshot.");
+          }
+
+          await refreshQuizzes();
+          await refreshState();
+          ui.dataFile.value = "";
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+
+      ui.startBtn.addEventListener("click", async () => {
+        try {
+          const quizId = ui.quizSelect.value;
+          // Ensure identify display is turned off when starting/showing a question
+          try {
+            await api("/api/session/identify-display", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ enabled: false }),
+            });
+          } catch (e) {}
+
+          await api("/api/session/start", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ quizId }),
+          });
+          await refreshState();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+
+      ui.prevBtn.addEventListener("click", async () => {
+        try {
+          await api("/api/session/prev", { method: "POST" });
+          await refreshState();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+
+      ui.nextBtn.addEventListener("click", async () => {
+        try {
+          // If admin is showing the question (welcome -> question),
+          // immediately disable the Next button for 5s to avoid a
+          // rapid second click that would start voting too soon.
+          try {
+            if (state && state.stage === 'welcome') {
+              nextDisableUntil = Date.now() + 5000;
+              ui.nextBtn.disabled = true;
+            }
+          } catch (e) {}
+
+          // Turn off identify display when advancing to show question/reveal
+          try {
+            await api("/api/session/identify-display", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ enabled: false }),
+            });
+          } catch (e) {}
+
+          await api("/api/session/next", { method: "POST" });
+          await refreshState();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+
+      ui.endBtn.addEventListener("click", async () => {
+        if (!confirm("Naozaj chcete ukončiť kvíz predčasne?")) return;
+        try {
+          await api("/api/session/end", { method: "POST" });
+          await refreshState();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+
+      ui.identifyBtn.addEventListener("click", async () => {
+        try {
+          const enabled = !(state && state.identifyDisplayEnabled);
+          if (enabled) {
+            const ok = confirm("Naozaj chcete zapnúť identifikáciu gamepadov na displayoch?");
+            if (!ok) return;
+          }
+          await api("/api/session/identify-display", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ enabled }),
+          });
+          await refreshState();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+
+      function updateAutoPilotBtn() {
+        if (autoPilotActive) {
+          ui.autoPilotBtn.textContent = "Auto režim: zapnutý";
+          ui.autoPilotBtn.classList.add("warn");
+        } else {
+          ui.autoPilotBtn.textContent = "Auto režim";
+          ui.autoPilotBtn.classList.remove("warn");
+        }
+      }
+
+      async function autoPilotStep() {
+        if (!autoPilotActive) return;
+
+        const stage = state && state.stage ? state.stage : "idle";
+        // Decide behavior depending on current stage. Only call 'next' when
+        // auto-advancing is valid: welcome -> question, question -> voting,
+        // reveal/review -> next question. During voting/collecting wait.
+        let delay = 3000;
+        let shouldCallNext = false;
+
+        if (stage === "idle" || stage === "finished") {
+          // nothing to do, stop autopilot
+          autoPilotActive = false;
+          updateAutoPilotBtn();
+          return;
+        }
+        if (stage === "welcome") {
+          shouldCallNext = true;
+          delay = 2000;
+        } else if (stage === "question") {
+          shouldCallNext = true;
+          delay = 10000;
+        } else if (stage === "voting" || stage === "collecting") {
+          // wait until voting/collecting finishes
+          shouldCallNext = false;
+          delay = 1000;
+        } else if (stage === "review" || stage === "reveal") {
+          shouldCallNext = true;
+          delay = 3000;
+        }
+
+        autoPilotTimer = setTimeout(async () => {
+          try {
+            if (shouldCallNext) {
+              await api("/api/session/next", { method: "POST" });
+              await refreshState();
+            } else {
+              // just refresh state to see if stage changed
+              await refreshState();
+            }
+
+            if (!autoPilotActive) return;
+            // Continue stepping unless finished
+            if (state && state.stage !== "finished") {
+              await autoPilotStep();
+            } else {
+              autoPilotActive = false;
+              updateAutoPilotBtn();
+            }
+          } catch (err) {
+            // Stop autoPilot on errors but don't show blocking alerts
+            console.debug && console.debug('autoPilot error', err);
+            autoPilotActive = false;
+            updateAutoPilotBtn();
+          }
+        }, delay);
+      }
+
+      ui.autoPilotBtn.addEventListener("click", async () => {
+        autoPilotActive = !autoPilotActive;
+        updateAutoPilotBtn();
+        if (autoPilotActive) {
+          await autoPilotStep();
+        } else {
+          if (autoPilotTimer) clearTimeout(autoPilotTimer);
+          autoPilotTimer = null;
+        }
+      });
+
+      ui.rows.addEventListener("input", (event) => {
+        const input = event.target.closest("input[data-kind][data-id]");
+        if (!input) return;
+
+        const id = input.dataset.id;
+        const kind = input.dataset.kind;
+        const d = getDraft(id);
+
+        if (kind === "name") {
+          d.name = input.value;
+          d.dirtyName = true;
+        }
+        if (kind === "points") {
+          d.points = input.value;
+          d.dirtyPoints = true;
+        }
+      });
+
+      ui.rows.addEventListener("click", async (event) => {
+        const editBtn = event.target.closest("button[data-action='edit-gp']");
+        if (editBtn) {
+          const id = editBtn.dataset.id;
+          editMode.add(id);
+          const g = (state && state.gamepads || []).find((x) => x.id === id);
+          const d = getDraft(id);
+          if (!d.dirtyName) d.name = g ? (g.name || g.id) : "";
+          if (!d.dirtyPoints) d.points = g ? Number(g.points || 0) : 0;
+          renderGamepads();
+          return;
+        }
+
+        const deleteBtn = event.target.closest("button[data-action='delete-gp']");
+        if (deleteBtn) {
+          const id = deleteBtn.dataset.id;
+          const gp = (state && state.gamepads || []).find((x) => x.id === id);
+          const prefix = gp && Number(gp.gamepadNumber || 0) > 0 ? `#${Number(gp.gamepadNumber)} ` : "";
+          const label = gp ? `${prefix}${gp.name || gp.id}` : id;
+          if (!confirm(`Naozaj chcete vymazať offline gamepad "${label}"?`)) {
+            return;
+          }
+
+          try {
+            await api(`/api/gamepads/${id}`, { method: "DELETE" });
+            drafts.delete(id);
+            editMode.delete(id);
+            await refreshState();
+          } catch (err) {
+            alert(err.message);
+          }
+          return;
+        }
+
+        const ackBtn = event.target.closest("button[data-action='ack-gp']");
+        if (ackBtn) {
+          const id = ackBtn.dataset.id;
+          try {
+            await api(`/api/gamepads/${id}/ack-correct`, { method: "POST" });
+            await refreshState();
+          } catch (err) {
+            alert(err.message);
+          }
+          return;
+        }
+
+        const saveBtn = event.target.closest("button[data-action='save-gp']");
+        if (!saveBtn) return;
+
+        const id = saveBtn.dataset.id;
+        const nameEl = ui.rows.querySelector(`input[data-kind='name'][data-id='${id}']`);
+        const pointsEl = ui.rows.querySelector(`input[data-kind='points'][data-id='${id}']`);
+
+        try {
+          await api(`/api/gamepads/${id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: nameEl ? nameEl.value : undefined,
+              points: pointsEl ? Number(pointsEl.value || 0) : undefined,
+            }),
+          });
+          drafts.delete(id);
+          editMode.delete(id);
+          await refreshState();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+
+      async function boot() {
+        try {
+          await refreshQuizzes();
+          await refreshState();
+          setInterval(() => {
+            refreshState().catch(() => {});
+          }, POLL_MS);
+        } catch (err) {
+          console.error(err);
+          alert(err.message);
+        }
+      }
+
+      boot();
+    </script>
+  </body>
+</html>
