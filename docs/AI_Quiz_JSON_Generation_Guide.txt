@@ -115,13 +115,19 @@ Important generation rules for AI (validation + anti-hinting)
 5) Points/difficulty
 - Assign `points` 1–5. The AI should set points consistently with difficulty. Provide an optional `meta.difficultyReason` explaining the assigned points.
 
+
 6) Explanations and insights
 - Provide a `description` for each question with a clear explanation of the correct answer and optionally references or short source notes.
 - Optionally add a short `insight` / `interestingFact` field for the quiz admin to show as a curiosity.
 
 7) Images
-- If using images, either provide `imageUrl` (external) or `imageDataUrl` (base64 data URL). Prefer `imageDataUrl` for portability.
-- Keep image size reasonable; include `imageWidth`/`imageHeight` metadata if known.
+- If possible, include an image for every question. Images improve clarity and engagement and are preferred when they add value.
+- Mandatory images: For questions that require a visual (for example: "What's shown in this image?", "Identify the object in the picture", or any question that cannot be answered without a visual), the AI MUST include an image.
+- Image fields: Provide either `imageDataUrl` (preferred for portability) or `imageUrl`. When embedding with `imageDataUrl`, use a valid data URL such as `data:image/png;base64,<base64-data>`.
+- Accessibility and metadata: Include an `imageAlt` string describing the image content for accessibility, and add optional `imageWidth`/`imageHeight` (pixels) when known to avoid layout shifts.
+- Content policy for images: Images should be used as visual hints or illustrations only. Do not place critical textual answers inside the image unless the question explicitly asks about the image content. If the image must contain text required to answer the question, also include that text in a non-image field (for indexing/search) and mark the question as intentionally image-dependent.
+- Size and performance: Keep each embedded `imageDataUrl` under 512 KB where possible. Compress and resize images before embedding; prefer thumbnails or cropped images.
+
 
 -8) Ordering-specific
 - For `ordering` questions, the `answers` array MUST contain exactly 4 entries (`A`..`D`) and the `ordering` array MUST list all four IDs in the correct order (e.g., `["A","B","C","D"]`).
@@ -158,6 +164,14 @@ Complete sample JSON (small quiz)
 
 Notes for implementers / integrators
 - If you embed images as `imageDataUrl` they become large; ensure upload/transfer supports large JSON.
+
+Image embedding guidelines
+- **Allowed formats:** Use `imageDataUrl` for embedded images (preferred) or `imageUrl` for external links. An `imageDataUrl` must be a valid data URL, for example `data:image/png;base64,<base64-data>` or `data:image/jpeg;base64,<base64-data>`.
+- **Size limit:** Keep each `imageDataUrl` under 512 KB (base64-encoded payload). Large images may be rejected by the backend or cause performance issues in the browser.
+- **Purpose / content policy:** Images should be used as visual hints or illustrations only. Do not include critical answer information or the solution inside images (images must not contain the correct answer, chronological cues, or text that reveals ordering). Images that would reveal the solution should be avoided or the relevant textual content moved to the `description` field instead.
+- **Metadata:** Include optional `imageWidth`/`imageHeight` (pixels) when known to help clients reserve space and avoid layout shifts.
+- **Recommendations:** Prefer small, cropped images (icons, diagrams, or thumbnails). Compress and resize images before embedding. If portability is needed and images are large, host them externally and use `imageUrl` instead.
+
 - The backend will normalize IDs to uppercase; keep client-side references consistent.
 - If additional features are required (partial scoring, time-limits per question), include `meta` fields and document expected behavior.
 
@@ -171,32 +185,48 @@ Checklist for the AI before returning JSON
 - [ ] Validate answers are plausible distractors
 - [ ] Provide `description` for each question explaining the correct answer
 - [ ] Provide at least one `quiz` object mapping the questions
- - [ ] Verify the generated output is valid JSON (parseable) before returning the file
+- [ ] Verify the generated output is valid JSON (parseable) before returning the file
 
+Rules (requirements for Slovak-language generation)
 
-Pravidlá (požiadavky pre slovenské generovanie otázok)
+- Language: All question text, descriptions, explanations and answer texts MUST be written in Slovak. If the source material is not in Slovak, automatically translate and adapt it so the wording is natural and grammatically correct in Slovak.
+- Number of answer options: Every question (including `ordering`) MUST contain exactly four answer options with IDs `A`, `B`, `C`, `D`. If the original content proposes a different number, add or remove plausible distractors to arrive at four options.
+- Ordering questions: For `ordering` type questions generate an `ordering` array containing the correct sequence (for example `["A","B","C","D"]`). The `answers` array must include all four IDs. Set `shuffleAnswers: true` and randomize the presented order so that the displayed sequence is not always `A,B,C,D`.
+- Description for ordering questions: In the question-level `description` include the correct order in the format `A->B->C->D` as the first sentence, followed by an explanation and any interesting facts or context.
+- Fact-checking: Perform a basic fact-check using available sources before adding a question. Questions that require future knowledge or cannot be verified should be rejected or marked with `meta.reviewRequired: true`.
+- No answers in the question text: Ensure the question text does not contain or reveal the answer (for example avoid "Which year did X happen? 1999" or "The correct answer is B"). If such hints exist, rewrite or remove them so the question does not contain an answer clue.
+- Consistent answer IDs: Always use the single-letter IDs `A`, `B`, `C`, `D` for answer options. The `ordering` array must reference these IDs exactly once each.
+- Duplicate checks and hint leakage: Detect duplicate or nearly identical answer texts and adjust them. Ensure no answer text directly repeats a unique token from the question that would reveal the correct option.
 
-- **Jazyk:** Všetky otázky, popisy, vysvetlenia a texty odpovedí musia byť výhradne v slovenskom jazyku. Ak zdrojový obsah nie je po slovensky, automaticky ho prelož a uprav tak, aby bol prirodzený a správny po slovensky.
-- **Počet možných odpovedí:** Každá otázka (vrátane `ordering`) musí mať presne 4 odpovede (ID `A`, `B`, `C`, `D`). Ak pôvodný návrh obsahuje iný počet, uprav ho tak, aby boli doplnené alebo zredukované plausible distractory na celkom 4 položky.
-- **Zoradiace (`ordering`) otázky:** Generuj pole `ordering` obsahujúce správne poradie (napr. `["A","B","C","D"]`). `answers` musia obsahovať všetky 4 ID. Nastav `shuffleAnswers: true` a pri výstupe zamiešaj poradové zobrazenie odpovedí tak, aby sa pri prezentácii neobjavovala vždy logická postupnosť `A,B,C,D`.
-- **Popis (`description` / `popis`) pri zoradiacich otázkach:** Do poľa `description` (v slovenskom súbore označované ako `popis`) uveď na začiatku správne poradie vo formáte `A->B->C->D`, nasledované vysvetlením a zaujímavosťami.
-- **Overenie faktickej správnosti:** Pred pridaním otázky vykonaj základnú fakt-check kontrolu (v rámci dostupných zdrojov). Otázky, ktoré by vyžadovali udalosti z budúcnosti alebo odkazujú na niečo, čo sa ešte nestalo, treba upraviť alebo odmietnuť. Ak nie je možné overiť, označ otázku v `meta.reviewRequired: true`.
-- **Žiadne zodpovedanie v texte otázky:** Skontroluj, či text otázky priamo neobsahuje odpoveď (napr. „Ktorý rok vznikol X? 1999“ alebo „Správna odpoveď je B“). Ak áno, prepíš alebo odstráň tú časť tak, aby otázka neobsahovala spoľahlivú nápovedu k riešeniu.
-- **Konzistencia ID odpovedí:** Použi vždy ID `A`,`B`,`C`,`D` pre odpovede (nie `E`/`F` atď.). V `ordering` referencuj presne tieto ID, každé raz.
-- **Kontrola duplicít a náznakov:** Skontroluj duplicitu textov odpovedí a odstráň alebo uprav duplicitné položky; skontroluj, či žiadna odpoveď priamo neopisuje unikátny znak z otázky, ktorý by ju prezradil.
+Updated checklist (additions)
 
--Aktualizovaný checklist (doplnky)
--Aktualizovaný checklist (doplnky)
-- [ ] Všetky texty sú v slovenčine
-- [ ] Každá otázka má presne 4 odpovede (`A`..`D`)
-- [ ] `multiple` otázky môžu mať 1..4 správnych odpovedí
-- [ ] `ordering` otázky majú `ordering` pole a `shuffleAnswers: true` a `popis` obsahuje `A->B->C->D`
-- [ ] Žiadna otázka neodkazuje na budúce udalosti ani neobsahuje odpoveď v texte
-- [ ] Overená faktická správnosť alebo označené `meta.reviewRequired`
- - [ ] Overiť, že vygenerovaný súbor je syntakticky platný JSON (parsovateľný)
+- [ ] All texts are written in Slovak.
+- [ ] Each question has exactly four answers (`A`..`D`).
+- [ ] `multiple` questions may have 1..4 correct answers.
+- [ ] `ordering` questions include an `ordering` field, `shuffleAnswers: true`, and the `description` starts with `A->B->C->D`.
+- [ ] No question refers to future events or contains the answer inside the question text.
+- [ ] Fact-checked or marked with `meta.reviewRequired` when verification is not possible.
+- [ ] Verify that the generated file is valid, parseable JSON.
+- [ ] Avoid trivial or overly simple questions; perform de-duplication to prevent repeated or very similar questions in the same file.
 
-- [ ] Otázky nie sú príliš jednoduché (vyhýbať sa triviálnym faktom)
-- [ ] V súbore sa neopakujú identické alebo veľmi podobné otázky (de-duplication)
+Distributed generation (subagents)
+
+- When generating large quizzes, consider splitting the workload across multiple subagents or workers. Each subagent should be assigned a disjoint subset of questions (for example by index range, topic, or tag) and produce a partial JSON result containing at least a `questions` array and any `categories` or `meta` it produced.
+- Subagent requirements:
+  - Follow the same schema and validation rules as this guide.
+  - Validate its own output (IDs unique within its subset, 4 answers per question, `ordering` correctness, etc.).
+  - Optionally prefix IDs or use a namespace to avoid collisions (e.g., `q-SA1-0001`).
+
+- Coordinator/merging steps:
+  - Collect all partial JSON outputs and concatenate `questions` arrays.
+  - Merge `categories` and `quizzes`, reconciling duplicates and normalizing IDs.
+  - De-duplicate similar questions and verify global ID uniqueness. If prefixes were used, optionally normalize final IDs per system conventions.
+  - Run the full validation checklist on the assembled JSON before importing (ID uniqueness, 4 answers per question, points range, no leak/hinting, parseable JSON).
+
+- Implementation notes and trade-offs:
+  - Use prefixing or a central ID allocator to prevent collisions when subagents run in parallel.
+  - Keep subagent outputs small (only include the fields needed) to reduce transfer size.
+  - Benefits: parallelism, faster generation, and easier fault isolation. Risks: merging complexity and the need for a final global validation pass.
 
 End of guide
 
