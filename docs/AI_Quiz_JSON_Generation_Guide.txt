@@ -117,12 +117,14 @@ Important generation rules for AI (validation + anti-hinting)
 5) Points/difficulty
 - Assign `points` 1–5. The AI should set points consistently with difficulty. Provide an optional `meta.difficultyReason` explaining the assigned points.
 
+- Difficulty floor: Questions MUST be at least high-school level (secondary school). Avoid trivial or primary-school-level questions; prefer items that require understanding, reasoning, or multi-step recall. Align `points` (1–5) with this requirement and document the rationale in `meta.difficultyReason` when helpful.
 
-6) Explanations and insights
+
+-6) Explanations and insights
 - Provide a `description` for each question with a clear explanation of the correct answer and optionally references or short source notes.
 - Optionally add a short `insight` / `interestingFact` field for the quiz admin to show as a curiosity.
-
-7) Images
+-
+-7) Images
 - If possible, include an image for every question. Images improve clarity and engagement and are preferred when they add value.
 - Mandatory images: For questions that require a visual (for example: "What's shown in this image?", "Identify the object in the picture", or any question that cannot be answered without a visual), the AI MUST include an image.
 - Image fields: Provide either `imageDataUrl` (preferred for portability) or `imageUrl`. When embedding with `imageDataUrl`, use a valid data URL such as `data:image/png;base64,<base64-data>`.
@@ -130,6 +132,13 @@ Important generation rules for AI (validation + anti-hinting)
 - Content policy for images: Images should be used as visual hints or illustrations only. Do not place critical textual answers inside the image unless the question explicitly asks about the image content. If the image must contain text required to answer the question, also include that text in a non-image field (for indexing/search) and mark the question as intentionally image-dependent.
 - Size and performance: Keep each embedded `imageDataUrl` under 512 KB where possible. Compress and resize images before embedding; prefer thumbnails or cropped images.
 
+- **Using internet images:** When embedding images would make the JSON too large or when suitable images exist online, prefer adding an `imageUrl` that points to a reputable internet source rather than embedding `imageDataUrl`. When using internet images:
+  - Ensure the image's license permits reuse (prefer public-domain or Creative Commons) and include `meta.imageSource` or `meta.imageAttribution` with the source URL and brief credit.
+  - Include `imageAlt` for accessibility and `imageWidth`/`imageHeight` when known to reduce layout shifts.
+  - Prefer stable, reputable image URLs and avoid hotlinking from unreliable hosts; consider server-side caching if needed.
+  - Keep internet images reasonably small (thumbnails/pre-compressed) and avoid images that embed the answer text or reveal ordering hints.
+
+-8) Ordering-specific
 
 -8) Ordering-specific
 - For `ordering` questions, the `answers` array MUST contain exactly 4 entries (`A`..`D`) and the `ordering` array MUST list all four IDs in the correct order (e.g., `["A","B","C","D"]`).
@@ -197,6 +206,7 @@ Rules (requirements for Slovak-language generation)
 - Description for ordering questions: In the question-level `description` include explanation and any interesting facts or context.
 - Fact-checking: Perform a basic fact-check using available sources before adding a question. Questions that require future knowledge or cannot be verified should be rejected or marked with `meta.reviewRequired: true`.
 - No answers in the question text: Ensure the question text does not contain or reveal the answer (for example avoid "Which year did X happen? 1999" or "The correct answer is B"). If such hints exist, rewrite or remove them so the question does not contain an answer clue.
+- Difficulty level: Ensure each generated question is at least high-school grade in difficulty. Do not generate overly simple or trivial questions; prefer ones that test comprehension, application, or multi-step reasoning. If a question cannot be reasonably adjusted to this level, mark it with `meta.reviewRequired: true`.
 - Consistent answer IDs: Always use the single-letter IDs `A`, `B`, `C`, `D` for answer options. The `ordering` array must reference these IDs exactly once each.
 - Duplicate checks and hint leakage: Detect duplicate or nearly identical answer texts and adjust them. Ensure no answer text directly repeats a unique token from the question that would reveal the correct option.
 
