@@ -134,7 +134,7 @@ Important generation rules for AI (validation + anti-hinting)
 - Do not reveal the order in answer texts; prefer neutral wording (e.g., "Bitka pri X" without years). If dates are necessary, move them into `description`/`popis`.
 - Set `shuffleAnswers: true` for ordering questions and randomize the presented order so that the displayed option sequence varies between sessions — do not rely on `A,B,C,D` being the presentation order.
 
-- In the question-level `description` (Slovak `popis`) include the correct order in the exact format `A->B->C->D` as the first line or sentence, followed by an explanation and any interesting facts or context.
+- In the question-level `description` (Slovak `popis`) include explanation and any interesting facts or context.
 
 9) Consistency checks for AI before finalizing JSON (must be applied automatically)
 - Ensure every question has a unique `id`.
@@ -192,7 +192,7 @@ Rules (requirements for Slovak-language generation)
 - Language: All question text, descriptions, explanations and answer texts MUST be written in Slovak. If the source material is not in Slovak, automatically translate and adapt it so the wording is natural and grammatically correct in Slovak.
 - Number of answer options: Every question (including `ordering`) MUST contain exactly four answer options with IDs `A`, `B`, `C`, `D`. If the original content proposes a different number, add or remove plausible distractors to arrive at four options.
 - Ordering questions: For `ordering` type questions generate an `ordering` array containing the correct sequence (for example `["A","B","C","D"]`). The `answers` array must include all four IDs. Set `shuffleAnswers: true` and randomize the presented order so that the displayed sequence is not always `A,B,C,D`.
-- Description for ordering questions: In the question-level `description` include the correct order in the format `A->B->C->D` as the first sentence, followed by an explanation and any interesting facts or context.
+- Description for ordering questions: In the question-level `description` include explanation and any interesting facts or context.
 - Fact-checking: Perform a basic fact-check using available sources before adding a question. Questions that require future knowledge or cannot be verified should be rejected or marked with `meta.reviewRequired: true`.
 - No answers in the question text: Ensure the question text does not contain or reveal the answer (for example avoid "Which year did X happen? 1999" or "The correct answer is B"). If such hints exist, rewrite or remove them so the question does not contain an answer clue.
 - Consistent answer IDs: Always use the single-letter IDs `A`, `B`, `C`, `D` for answer options. The `ordering` array must reference these IDs exactly once each.
@@ -203,7 +203,7 @@ Updated checklist (additions)
 - [ ] All texts are written in Slovak.
 - [ ] Each question has exactly four answers (`A`..`D`).
 - [ ] `multiple` questions may have 1..4 correct answers.
-- [ ] `ordering` questions include an `ordering` field, `shuffleAnswers: true`, and the `description` starts with `A->B->C->D`.
+- [ ] `ordering` questions include an `ordering` field, `shuffleAnswers: true`.
 - [ ] No question refers to future events or contains the answer inside the question text.
 - [ ] Fact-checked or marked with `meta.reviewRequired` when verification is not possible.
 - [ ] Verify that the generated file is valid, parseable JSON.
