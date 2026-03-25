@@ -3,6 +3,8 @@ AI Quiz JSON Generation Guide
 Purpose
 This file instructs an AI how to generate a quiz in the JSON format expected by this quiz system. It lists all supported question types, fields, validation rules, good practices, and sample JSON. Use this as the canonical reference when generating quizzes.
 
+Note: The final generated quiz file should be written in Slovak (slovensky). When producing questions, take your time: verify facts, follow the validation rules in this guide, and ensure answer texts do not leak solutions. Prioritize accuracy over speed.
+
 High-level structure (root JSON)
 - The backend accepts a payload containing arrays: `questions`, `quizzes`, and `categories`. The minimal payload must include these three arrays (they may be empty if not used). Example wrapper:
 
