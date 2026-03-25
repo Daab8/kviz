@@ -302,6 +302,10 @@
       const editMode = new Set();
       let state = null;
       let lastAdminStage = null;
+      // Track admin navigation: only allow "Prev" when admin has advanced
+      // forward to a later question previously (prevents re-running voting).
+      let adminLastQuestionIndex = -1;
+      let adminCanGoBack = false;
       let adminTimerId = null;
       let nextDisableUntil = 0;
       let autoPilotActive = false;
@@ -476,7 +480,23 @@
             ui.nextBtn.classList.add('disabled-timer');
           }
         } catch (e) {}
-        ui.prevBtn.disabled = ["idle", "welcome", "voting", "collecting", "finished"].includes(stage);
+        // Update admin navigation state: detect forward moves and permit a single "back"
+        try {
+          const qIndex = Number(s.questionIndex || 0);
+          if (adminLastQuestionIndex === -1) {
+            adminLastQuestionIndex = qIndex;
+          } else if (qIndex > adminLastQuestionIndex) {
+            // admin advanced forward to a later question -> allow going back
+            adminCanGoBack = true;
+            adminLastQuestionIndex = qIndex;
+          } else {
+            // normal update or moved back; update last index
+            adminLastQuestionIndex = qIndex;
+          }
+        } catch (e) {}
+
+        // Prev allowed only when adminCanGoBack and not in disallowed stages
+        ui.prevBtn.disabled = (!adminCanGoBack) || ["idle", "welcome", "voting", "collecting", "finished"].includes(stage);
         const identifyOn = Boolean(s.identifyDisplayEnabled);
         ui.identifyBtn.textContent = identifyOn
           ? "Čísla gamepadov na displayoch: ZAP"
@@ -757,7 +777,16 @@
 
       ui.prevBtn.addEventListener("click", async () => {
         try {
+          // Prevent accidental rewind that would restart voting. Prev is only
+          // allowed after admin has advanced to the next question previously.
+          if (!adminCanGoBack) {
+            alert('Späť je povolené len ak ste už zobrazili ďalšiu otázku a chcete sa vrátiť k výsledkom predchádzajúcej.');
+            return;
+          }
+
           await api("/api/session/prev", { method: "POST" });
+          // After going back, disallow further "Prev" until admin advances forward again
+          adminCanGoBack = false;
           await refreshState();
         } catch (err) {
           alert(err.message);

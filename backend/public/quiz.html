@@ -348,6 +348,11 @@
         width: 85%;
       }
 
+      /* Ordering reveal: answers appear one after another */
+      .answer.ordering { opacity: 0; transform: translateY(8px); transition: opacity 320ms ease, transform 320ms ease; }
+      .answer.ordering.visible { opacity: 1; transform: translateY(0); }
+      /* Ordering answers reuse the same .answer-fill styling as other reveals */
+
       @media (max-width: 900px) {
         html {
           font-size: 16px;
@@ -666,8 +671,11 @@
 
           // Ordering reveal: do not color answers or show per-answer bars/percents.
           if (isOrderingReveal) {
-            const fillHtml = "";
-            return `<div class="answer"><div class="answer-fill-wrap">${fillHtml}</div><div class="answer-content"><strong>${esc(label)}</strong> ${esc(a.text)}</div></div>`;
+            // Render ordering answers with an empty .answer-fill (width 0).
+            // The animator will later set the fill width and add the `.correct` class
+            // so the visual style matches other revealed answers.
+            const fillHtml = `<div class="answer-fill" style="width:0%;background:rgba(16,185,129,0.28);"></div>`;
+            return `<div class="answer ordering" data-order="${idx}"><div class="answer-fill-wrap">${fillHtml}</div><div class="answer-content"><strong>${esc(label)}</strong> ${esc(a.text)}</div></div>`;
           }
 
           const isCorrect = reveal && correct.has(id);
@@ -851,7 +859,17 @@
         if (stage === "review") {
           cancelTimerRaf();
           const wrapClass = state.currentQuestion && state.currentQuestion.answerType === 'single' ? 'single-center' : '';
-          el.innerHTML = `${header}<div id="questionArea" class="${wrapClass}">${renderQuestion(state.currentQuestion, true, state.latestResult)}</div>`;
+          // Only re-render the reveal content when we transition into the review stage
+          if (lastStage !== 'review') {
+            el.innerHTML = `${header}<div id="questionArea" class="${wrapClass}">${renderQuestion(state.currentQuestion, true, state.latestResult)}</div>`;
+            // If this is an ordering reveal, animate answers sequentially and then highlight + show percent
+            try {
+              const qa = document.getElementById('questionArea');
+              clearOrderingTimers();
+              const pct = computeOrderingAllCorrectPercent(state.currentQuestion, state.latestResult);
+              animateOrderingAnswersWithPercent(qa, pct);
+            } catch (e) {}
+          }
           lastStage = stage;
           return;
         }
@@ -905,7 +923,15 @@
 
         if (stage === "reveal") {
           cancelTimerRaf();
-          el.innerHTML = `${header}${renderQuestion(state.currentQuestion, true, state.latestResult)}`;
+          // Only render and animate once on transition to avoid interrupting staggered reveal
+          if (lastStage !== 'reveal') {
+            el.innerHTML = `${header}${renderQuestion(state.currentQuestion, true, state.latestResult)}`;
+            try {
+              clearOrderingTimers();
+              const pct = computeOrderingAllCorrectPercent(state.currentQuestion, state.latestResult);
+              animateOrderingAnswersWithPercent(document.getElementById('content'), pct);
+            } catch (e) {}
+          }
           lastStage = stage;
           return;
         }
@@ -983,6 +1009,80 @@
 
         el.innerHTML = `${header}<p class="muted">Čaká sa na spustenie kvízu.</p>`;
         lastStage = stage;
+      }
+
+      // --- Ordering reveal animation helpers ---
+      let _orderingTimers = [];
+      function clearOrderingTimers() {
+        for (const t of _orderingTimers) clearTimeout(t);
+        _orderingTimers = [];
+      }
+
+      function animateOrderingAnswers(rootEl) {
+        try {
+          clearOrderingTimers();
+          const container = rootEl || document;
+          const items = Array.from(container.querySelectorAll('.answer.ordering'));
+          if (!items.length) return;
+          // ensure all start hidden
+          items.forEach((it) => it.classList.remove('visible'));
+          items.forEach((it, idx) => {
+            const t = setTimeout(() => {
+              try { it.classList.add('visible'); } catch (e) {}
+            }, idx * 1500 + 50);
+            _orderingTimers.push(t);
+          });
+        } catch (e) {}
+      }
+
+      function computeOrderingAllCorrectPercent(question, latestResult) {
+        try {
+          if (!question || !Array.isArray(question.correctSelection)) return 0;
+          const expected = (question.correctSelection || []).map((x) => String(x || "").toUpperCase());
+          const results = Array.isArray(latestResult && latestResult.results) ? latestResult.results : [];
+          const total = Number(latestResult && Number.isFinite(Number(latestResult.totalResponders)) ? latestResult.totalResponders : results.length) || results.length;
+          if (!total) return 0;
+          let ok = 0;
+          for (const r of results) {
+            const sel = Array.isArray(r && r.selection) ? r.selection.map((x) => String(x || "").toUpperCase()) : [];
+            if (sel.length !== expected.length) continue;
+            let match = true;
+            for (let i = 0; i < expected.length; i++) {
+              if (sel[i] !== expected[i]) { match = false; break; }
+            }
+            if (match) ok++;
+          }
+          return Math.round((ok / total) * 100);
+        } catch (e) { return 0; }
+      }
+
+      function animateOrderingAnswersWithPercent(rootEl, percent) {
+        try {
+          clearOrderingTimers();
+          const container = rootEl || document;
+          const items = Array.from(container.querySelectorAll('.answer.ordering'));
+          if (!items.length) return;
+          items.forEach((it) => it.classList.remove('visible'));
+          items.forEach((it, idx) => {
+            const t = setTimeout(() => {
+              try { it.classList.add('visible'); } catch (e) {}
+            }, idx * 1000 + 50);
+            _orderingTimers.push(t);
+          });
+
+          // After last item visible, wait 1s then mark correct and fill the shared percent
+          const finishDelay = items.length * 1000 + 1000;
+          const finishTimer = setTimeout(() => {
+            try {
+              items.forEach((it) => {
+                try { it.classList.add('correct'); } catch (e) {}
+                const fill = it.querySelector('.answer-fill');
+                if (fill) { fill.style.width = (Number(percent) || 0) + '%'; fill.style.background = 'rgba(16,185,129,0.28)'; }
+              });
+            } catch (e) {}
+          }, finishDelay);
+          _orderingTimers.push(finishTimer);
+        } catch (e) {}
       }
 
       async function refreshState() {
