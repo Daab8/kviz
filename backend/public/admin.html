@@ -436,7 +436,7 @@
         // prematurely.
         try {
           if (stage === 'question' && lastAdminStage !== 'question') {
-            nextDisableUntil = Date.now() + 5000;
+            nextDisableUntil = Date.now() + 3000;
             ui.nextBtn.disabled = true;
             ui.nextBtn.classList.add('disabled-timer');
           }
@@ -681,7 +681,7 @@
           // rapid second click that would start voting too soon.
           try {
             if (state && state.stage === 'welcome') {
-              nextDisableUntil = Date.now() + 5000;
+              nextDisableUntil = Date.now() + 3000;
               ui.nextBtn.disabled = true;
             }
           } catch (e) {}
@@ -747,7 +747,7 @@
         // Decide behavior depending on current stage. Only call 'next' when
         // auto-advancing is valid: welcome -> question, question -> voting,
         // reveal/review -> next question. During voting/collecting wait.
-        let delay = 3000;
+        let delay = 5000;
         let shouldCallNext = false;
 
         if (stage === "idle" || stage === "finished") {
@@ -768,7 +768,7 @@
           delay = 1000;
         } else if (stage === "review" || stage === "reveal") {
           shouldCallNext = true;
-          delay = 3000;
+          delay = 5000;
         }
 
         autoPilotTimer = setTimeout(async () => {

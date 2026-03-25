@@ -359,9 +359,6 @@ selected = []
 identify_display_enabled = False
 identify_number = None
 
-flash_blue = False
-flash_led_on = False
-
 _mqtt_client_ref = {"client": None, "submit_topic": "", "gamepad_id": ""}
 
 
@@ -435,6 +432,11 @@ def perform_ota_update(url, expected_sha256=None):
             raise OSError("HTTP {}".format(status))
 
         body = response.content
+        # Normalize body to bytes (urequests may return str on some builds)
+        if body is None:
+            raise OSError("empty payload")
+        if isinstance(body, str):
+            body = body.encode("utf-8")
         if not body:
             raise OSError("empty payload")
 
@@ -444,8 +446,13 @@ def perform_ota_update(url, expected_sha256=None):
             if got and got != want:
                 raise OSError("sha mismatch")
 
+        # Write to a temp file first
         with open(OTA_TEMP_FILE, "wb") as f:
             f.write(body)
+            try:
+                f.flush()
+            except Exception:
+                pass
 
     finally:
         if response is not None:
@@ -454,6 +461,8 @@ def perform_ota_update(url, expected_sha256=None):
             except Exception:
                 pass
 
+    # Try to rotate files: remove old backup, move current target to backup,
+    # fall back to removing current target if rename fails, then move temp -> target.
     try:
         os.remove(OTA_BACKUP_FILE)
     except Exception:
@@ -462,9 +471,34 @@ def perform_ota_update(url, expected_sha256=None):
     try:
         os.rename(OTA_TARGET_FILE, OTA_BACKUP_FILE)
     except Exception:
-        pass
+        try:
+            os.remove(OTA_TARGET_FILE)
+        except Exception:
+            pass
 
+    # Final install step
     os.rename(OTA_TEMP_FILE, OTA_TARGET_FILE)
+
+    # Optional verification: reopen and check sha256 if hashing available and expected provided
+    if expected_sha256 and (hashlib is not None and ubinascii is not None):
+        try:
+            with open(OTA_TARGET_FILE, "rb") as f:
+                content = f.read()
+            got2 = _sha256_hex(content)
+            want2 = str(expected_sha256).strip().lower()
+            if got2 and got2 != want2:
+                raise OSError("sha mismatch after install")
+        except Exception:
+            # If verification fails, attempt to restore backup
+            try:
+                os.remove(OTA_TARGET_FILE)
+            except Exception:
+                pass
+            try:
+                os.rename(OTA_BACKUP_FILE, OTA_TARGET_FILE)
+            except Exception:
+                pass
+            raise
 
 
 def apply_button_input(button_label):
@@ -505,7 +539,6 @@ def apply_button_input(button_label):
         display_clear()
 def handle_control_message(data):
     global current_phase, current_question_id, current_answer_type, identify_display_enabled, identify_number
-    global flash_blue, flash_led_on
 
     msg_type = str(data.get("type", "")).lower()
 
@@ -573,13 +606,9 @@ def handle_control_message(data):
 
         if phase == "voting":
             clear_selection()
-            flash_blue = True
-            flash_led_on = True
             display_clear()
             set_led_rgb(0, 0, 255)
         elif phase == "collecting":
-            flash_blue = False
-            flash_led_on = False
             set_led_rgb(0, 0, 0)
             if identify_display_enabled:
                 display_identify_number()
@@ -587,22 +616,15 @@ def handle_control_message(data):
                 render_selection_display() if has_vote() else display_clear()
         elif phase in ["question", "welcome", "idle"]:
             clear_selection()
-            flash_blue = False
-            flash_led_on = False
             set_led_rgb(0, 0, 0)
             if identify_display_enabled:
                 display_identify_number()
             else:
                 display_clear()
         elif phase in ["review", "reveal"]:
-            # Keep last result feedback (LED + points) visible until a new question/welcome arrives.
-            flash_blue = False
-            flash_led_on = False
             if identify_display_enabled:
                 display_identify_number()
         elif phase == "finished":
-            flash_blue = False
-            flash_led_on = False
             # Final screen: turn LED off, keep currently shown value (e.g., points) on display.
             set_led_rgb(0, 0, 0)
             if identify_display_enabled:
@@ -610,14 +632,9 @@ def handle_control_message(data):
 
 
 def handle_result_message(data):
-    global flash_blue, flash_led_on
-
     msg_type = str(data.get("type", "")).lower()
     if msg_type != "result":
         return
-
-    flash_blue = False
-    flash_led_on = False
 
     correct = bool(data.get("correct", False))
     if correct:
@@ -670,20 +687,9 @@ def read_rssi_dbm(sta_if):
         return None
 
 
-def update_voting_led():
-    global flash_led_on
-
-    if current_phase != "voting":
-        return
-
-    if not flash_led_on:
-        flash_led_on = True
-        set_led_rgb(0, 0, 255)
-
-
 def show_disconnected_led():
-    # Stable purple while MQTT broker connection is not established.
-    set_led_rgb(160, 0, 255)
+    # Stable red while MQTT broker connection is not established.
+    set_led_rgb(255, 0, 0)
 
 
 def show_disconnected_feedback():
@@ -796,7 +802,6 @@ def main():
                 # R only clears vote while in voting; A-D follow current answer mode.
                 apply_button_input(label)
 
-            update_voting_led()
             time.sleep_ms(20)
 
             # If collector requested submit, it arrives on /control as submit-request.

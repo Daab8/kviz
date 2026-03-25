@@ -5,6 +5,7 @@ const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
 const mqtt = require("mqtt");
+const os = require("os");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const BACKEND = path.resolve(__dirname, "..");
@@ -16,7 +17,30 @@ const API_HOST = process.env.OTA_API_HOST || "127.0.0.1";
 const API_PORT = Number(process.env.OTA_API_PORT || process.env.PORT || 80);
 const MQTT_HOST = process.env.MQTT_HOST || "127.0.0.1";
 const MQTT_PORT = Number(process.env.MQTT_PORT || 1883);
-const OTA_PUBLIC_HOST = process.env.OTA_PUBLIC_HOST || "192.168.0.8";
+function detectPublicHost() {
+  if (process.env.OTA_PUBLIC_HOST) return process.env.OTA_PUBLIC_HOST;
+  const nets = os.networkInterfaces();
+  const candidates = [];
+  for (const name of Object.keys(nets)) {
+    for (const ni of nets[name]) {
+      // Node may return 'IPv4' or 4 depending on platform
+      const fam = ni.family || ni.family === 4 ? String(ni.family) : "";
+      if (!/4|IPv4/.test(String(ni.family))) continue;
+      if (ni.internal) continue;
+      candidates.push({ name, address: ni.address });
+    }
+  }
+  if (candidates.length === 0) return "127.0.0.1";
+  // Prefer addresses that end with .1 (common hotspot/gateway address)
+  const dot1 = candidates.find((c) => c.address.split(".").pop() === "1");
+  if (dot1) return dot1.address;
+  // Prefer interfaces whose name hints at hotspot/wifi
+  const prefer = candidates.find((c) => /hotspot|wi-?fi|wireless|local area connection|adapter/i.test(c.name));
+  if (prefer) return prefer.address;
+  return candidates[0].address;
+}
+
+const OTA_PUBLIC_HOST = detectPublicHost();
 const OTA_PUBLIC_PORT = Number(process.env.OTA_PUBLIC_PORT || API_PORT);
 const OTA_URL = process.env.OTA_URL || `http://${OTA_PUBLIC_HOST}:${OTA_PUBLIC_PORT}/ota/main.py`;
 const ACK_WAIT_MS = Number(process.env.OTA_ACK_WAIT_MS || 8000);
@@ -145,6 +169,7 @@ async function main() {
     }
 
     console.log(`Published OTA command to ${connected.length} gamepad(s).`);
+    console.log(`Auto-detected OTA host: ${OTA_PUBLIC_HOST}`);
     console.log(`OTA URL: ${OTA_URL}`);
     console.log(`SHA256 : ${sha256}`);
     console.log(`Waiting ${ACK_WAIT_MS} ms for fw-update-status acknowledgements...`);

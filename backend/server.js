@@ -894,10 +894,10 @@ function finalizeRound() {
   session.votingEndsAt = null;
 
   refreshGamepadVoteFlags();
-  // Publish results immediately and move to reveal phase so audience sees
-  // correct answers without requiring an admin click.
+  // Publish results immediately (per-gamepad result messages) and move to
+  // reveal phase so audience sees correct answers without requiring an admin click.
   try {
-    summary.resultsPublishedAt = Date.now();
+    publishRoundResultsToGamepads(summary);
   } catch (e) {}
   setStage("reveal");
   publishPhaseToAllGamepads({
