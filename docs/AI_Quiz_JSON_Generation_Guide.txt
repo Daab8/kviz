@@ -105,8 +105,11 @@ Important generation rules for AI (validation + anti-hinting)
 3) Plausible distractors
 - For single/multiple choice, produce plausible distractors: same category / similar length / similar phrasing. Avoid obviously wrong items (unless intentionally easy). Keep distractors grammatically consistent with the question.
 
-4) Answer counts and formatting
-- Prefer 3–6 answer options. For `single` choose 3–5 options by default. For `multiple`, 4–6 recommended.
+-4) Answer counts and formatting
+- Every question MUST have exactly 4 answer options (`A`,`B`,`C`,`D`). Do not generate fewer or more.
+- For `single` questions exactly one of the four answers must be correct.
+- For `multiple` questions any number of the four answers may be correct (from 1 to 4). Design distractors accordingly.
+- Keep answer text concise (one sentence or phrase). Use sentence capitalization.
 - Keep answer text concise (one sentence or phrase). Use sentence capitalization.
 
 5) Points/difficulty
@@ -120,16 +123,20 @@ Important generation rules for AI (validation + anti-hinting)
 - If using images, either provide `imageUrl` (external) or `imageDataUrl` (base64 data URL). Prefer `imageDataUrl` for portability.
 - Keep image size reasonable; include `imageWidth`/`imageHeight` metadata if known.
 
-8) Ordering-specific
-- For `ordering` questions, avoid giving away the order in the answer text. Use neutral naming (e.g., "Event A: Siege of X" rather than including the year in the answer text).
-- If dates are necessary, move them to `description` only after answers are revealed.
+-8) Ordering-specific
+- For `ordering` questions, the `answers` array MUST contain exactly 4 entries (`A`..`D`) and the `ordering` array MUST list all four IDs in the correct order (e.g., `["A","B","C","D"]`).
+- Do not reveal the order in answer texts; prefer neutral wording (e.g., "Bitka pri X" without years). If dates are necessary, move them into `description`/`popis`.
+- Set `shuffleAnswers: true` for ordering questions and randomize the presented order so that the displayed option sequence varies between sessions — do not rely on `A,B,C,D` being the presentation order.
+
+- In the question-level `description` (Slovak `popis`) include the correct order in the exact format `A->B->C->D` as the first line or sentence, followed by an explanation and any interesting facts or context.
 
 9) Consistency checks for AI before finalizing JSON (must be applied automatically)
-- Ensure every question has unique `id`.
-- Ensure each question with `answerType: single` has exactly one `correct: true` (or the `correct` field omitted and `correctSelection` defined elsewhere).
-- For `multiple`, ensure at least one answer has `correct: true` and not all answers are correct unless intentionally designed.
-- For `ordering`, ensure `ordering` references all provided answer IDs exactly once.
-- Ensure answer `id`s are single uppercase letters, sequential from `A`.
+- Ensure every question has a unique `id`.
+- Ensure every question has exactly four answers with IDs `A`,`B`,`C`,`D`.
+- Ensure each question with `answerType: single` has exactly one `correct: true`.
+- For `multiple`, ensure at least one answer has `correct: true` (1..4 correct answers allowed) and that this is intentional.
+- For `ordering`, ensure `ordering` references all four provided answer IDs exactly once.
+- Ensure answer `id`s are the single uppercase letters `A`,`B`,`C`,`D`.
 - Reject or rewrite answers where answer text repeats the full question text or trivially hints the solution.
 - Check for duplicate answer texts and remove/adjust duplicates.
 - Verify `points` inside range 1–5.
@@ -164,24 +171,29 @@ Checklist for the AI before returning JSON
 - [ ] Validate answers are plausible distractors
 - [ ] Provide `description` for each question explaining the correct answer
 - [ ] Provide at least one `quiz` object mapping the questions
+ - [ ] Verify the generated output is valid JSON (parseable) before returning the file
 
 
 Pravidlá (požiadavky pre slovenské generovanie otázok)
 
 - **Jazyk:** Všetky otázky, popisy, vysvetlenia a texty odpovedí musia byť výhradne v slovenskom jazyku. Ak zdrojový obsah nie je po slovensky, automaticky ho prelož a uprav tak, aby bol prirodzený a správny po slovensky.
-- **Počet možných odpovedí:** Každá otázka typu `single` alebo `multiple` musí mať presne 4 odpovede (ID `A`, `B`, `C`, `D`). Ak pôvodný návrh obsahuje iný počet, uprav ho tak, aby boli doplnené alebo zredukované plausible distractory na celkom 4 položky.
-- **Zoradiace (`ordering`) otázky:** Generuj pole `ordering` obsahujúce správne poradie (napr. `["A","B","C","D"]`), ale zároveň nastav `shuffleAnswers: true` a pri výstupe zamiešaj poradové zobrazenie odpovedí tak, aby sa pri prezentácii neobjavovala vždy logická postupnosť `A,B,C,D` (t.j. prevedenie na náhodné poradie). Takto sa zabráni, aby poradie ID priamo prezradilo riešenie.
+- **Počet možných odpovedí:** Každá otázka (vrátane `ordering`) musí mať presne 4 odpovede (ID `A`, `B`, `C`, `D`). Ak pôvodný návrh obsahuje iný počet, uprav ho tak, aby boli doplnené alebo zredukované plausible distractory na celkom 4 položky.
+- **Zoradiace (`ordering`) otázky:** Generuj pole `ordering` obsahujúce správne poradie (napr. `["A","B","C","D"]`). `answers` musia obsahovať všetky 4 ID. Nastav `shuffleAnswers: true` a pri výstupe zamiešaj poradové zobrazenie odpovedí tak, aby sa pri prezentácii neobjavovala vždy logická postupnosť `A,B,C,D`.
+- **Popis (`description` / `popis`) pri zoradiacich otázkach:** Do poľa `description` (v slovenskom súbore označované ako `popis`) uveď na začiatku správne poradie vo formáte `A->B->C->D`, nasledované vysvetlením a zaujímavosťami.
 - **Overenie faktickej správnosti:** Pred pridaním otázky vykonaj základnú fakt-check kontrolu (v rámci dostupných zdrojov). Otázky, ktoré by vyžadovali udalosti z budúcnosti alebo odkazujú na niečo, čo sa ešte nestalo, treba upraviť alebo odmietnuť. Ak nie je možné overiť, označ otázku v `meta.reviewRequired: true`.
 - **Žiadne zodpovedanie v texte otázky:** Skontroluj, či text otázky priamo neobsahuje odpoveď (napr. „Ktorý rok vznikol X? 1999“ alebo „Správna odpoveď je B“). Ak áno, prepíš alebo odstráň tú časť tak, aby otázka neobsahovala spoľahlivú nápovedu k riešeniu.
 - **Konzistencia ID odpovedí:** Použi vždy ID `A`,`B`,`C`,`D` pre odpovede (nie `E`/`F` atď.). V `ordering` referencuj presne tieto ID, každé raz.
 - **Kontrola duplicít a náznakov:** Skontroluj duplicitu textov odpovedí a odstráň alebo uprav duplicitné položky; skontroluj, či žiadna odpoveď priamo neopisuje unikátny znak z otázky, ktorý by ju prezradil.
 
-Aktualizovaný checklist (doplnky)
+-Aktualizovaný checklist (doplnky)
+-Aktualizovaný checklist (doplnky)
 - [ ] Všetky texty sú v slovenčine
-- [ ] Každá `single`/`multiple` otázka má presne 4 odpovede (`A`..`D`)
-- [ ] `ordering` otázky majú `ordering` pole a `shuffleAnswers: true`
+- [ ] Každá otázka má presne 4 odpovede (`A`..`D`)
+- [ ] `multiple` otázky môžu mať 1..4 správnych odpovedí
+- [ ] `ordering` otázky majú `ordering` pole a `shuffleAnswers: true` a `popis` obsahuje `A->B->C->D`
 - [ ] Žiadna otázka neodkazuje na budúce udalosti ani neobsahuje odpoveď v texte
 - [ ] Overená faktická správnosť alebo označené `meta.reviewRequired`
+ - [ ] Overiť, že vygenerovaný súbor je syntakticky platný JSON (parsovateľný)
 
 - [ ] Otázky nie sú príliš jednoduché (vyhýbať sa triviálnym faktom)
 - [ ] V súbore sa neopakujú identické alebo veľmi podobné otázky (de-duplication)
