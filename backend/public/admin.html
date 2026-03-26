@@ -265,6 +265,7 @@
                 <th>Meno</th>
                 <th>Stav</th>
                 <th>WiFi</th>
+                <th>Batéria</th>
                 <th>Posledná voľba</th>
                 <th>Body</th>
                 <th>Akcia</th>
@@ -646,11 +647,12 @@
           if (!ids.has(id)) editMode.delete(id);
         }
 
-        ui.rows.innerHTML = list.map((g) => {
+          ui.rows.innerHTML = list.map((g) => {
           const online = isGamepadOnline(g);
           const statusText = online ? "Online" : "Offline";
           const statusCls = online ? "ok" : "bad";
           const rssi = Number.isFinite(g.rssiDbm) ? g.rssiDbm : null;
+          const battery = Number.isFinite(g.batteryPct) ? g.batteryPct : null;
           const signal = wifiSignalInfo(rssi);
 
           const d = getDraft(g.id);
@@ -695,6 +697,7 @@
             <td>${nameCell}</td>
             <td class="${statusCls}">${statusText}</td>
             <td><span class="pill wifi-pill ${signal.cls}" title="${esc(signal.title)}">${signal.label}</span></td>
+            <td>${battery !== null ? `<span class="pill" title="Batéria: ${battery}%">${battery}%</span>` : "-"}</td>
             <td>${(g.lastSelection || []).join(" ") || "-"}</td>
             <td>${pointsCell}</td>
             <td>${actionBtn}</td>

@@ -161,6 +161,7 @@ function ensureGamepad(id) {
       lastDisconnectAt: null,
       lastTelemetryAt: null,
       rssiDbm: null,
+      batteryPct: null,
       points: 0,
       voted: false,
       submitted: false,
@@ -574,6 +575,7 @@ function sessionStateForClient() {
       connected: Boolean(g.connected),
       points: Number(g.points || 0),
       rssiDbm: Number.isFinite(g.rssiDbm) ? Number(g.rssiDbm) : null,
+      batteryPct: Number.isFinite(g.batteryPct) ? Number(g.batteryPct) : null,
       lastTelemetryAt: g.lastTelemetryAt,
       voted: Boolean(g.voted),
       submitted: Boolean(g.submitted),
@@ -961,6 +963,10 @@ function handleTelemetryMessage(gamepadId, payload) {
   gp.lastTelemetryAt = Date.now();
   const rssi = Number(payload.rssiDbm);
   if (Number.isFinite(rssi)) gp.rssiDbm = rssi;
+  const battery = Number(payload.batteryPct);
+  if (Number.isFinite(battery)) {
+    gp.batteryPct = Math.max(0, Math.min(100, Math.round(battery)));
+  }
 }
 
 broker.on("client", (client) => {
@@ -1084,6 +1090,7 @@ app.get("/api/gamepads", (req, res) => {
       voted: Boolean(g.voted),
       submitted: Boolean(g.submitted),
       rssiDbm: Number.isFinite(g.rssiDbm) ? Number(g.rssiDbm) : null,
+      batteryPct: Number.isFinite(g.batteryPct) ? Number(g.batteryPct) : null,
       lastTelemetryAt: g.lastTelemetryAt,
       lastSelection: normalizeSelection(g.lastSelection || []),
     }))

@@ -21,7 +21,7 @@ wiring:
 
 display
 VCC - 5V
-CLK - gpio 0
+CLK - gpio 9
 DIO - gpio 1
 
 LED
@@ -44,3 +44,9 @@ BAT+ - battery +
 BAT+ - power button right pin
 BAT- - battery -
 BAT- - GND
+
+battery percentage ADC
+BAT+ - 100k resistor 1
+100k resistor 1 - gpio 0
+gpio 0 - 100k resistor 2
+100k resistor 2 - BAT-

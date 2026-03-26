@@ -151,7 +151,8 @@
         function publishTelemetry() {
           if (!client || !gpId || !client.connected) return;
           const rssi = -40 - Math.floor(Math.random() * 30);
-          try { client.publish(`gamepad/${gpId}/telemetry`, JSON.stringify({ rssiDbm: rssi }), { qos:0 }); } catch (e) {}
+          const battery = 20 + Math.floor(Math.random() * 81); // 20..100%
+          try { client.publish(`gamepad/${gpId}/telemetry`, JSON.stringify({ rssiDbm: rssi, batteryPct: battery }), { qos:0 }); } catch (e) {}
         }
 
         function appendLog(txt) { try { logEl.textContent = (logEl.textContent + '\n' + txt).slice(-8000); logEl.scrollTop = logEl.scrollHeight; } catch(e) {} }

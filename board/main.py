@@ -1,4 +1,4 @@
-from machine import Pin, PWM  # type: ignore
+from machine import Pin, PWM, ADC  # type: ignore
 import network  # type: ignore
 import time
 import machine  # type: ignore
@@ -49,8 +49,8 @@ OTA_BACKUP_FILE = "main.bak.py"
 BROWNOUT_SAFETY_ENABLED = True
 BROWNOUT_SAFETY_SLEEP_MS = 3_600_000  # 1 hour
 
-# ---- Wiring (matches test_wiring.py) ----
-CLK = 0
+
+CLK = 9
 DIO = 1
 RED_PIN = 2
 GREEN_PIN = 3
@@ -107,6 +107,19 @@ buttons = [Pin(gpio, Pin.IN, Pin.PULL_UP) for gpio in BUTTON_PINS]
 red_pwm = PWM(Pin(RED_PIN, Pin.OUT), freq=1000, duty_u16=0)
 green_pwm = PWM(Pin(GREEN_PIN, Pin.OUT), freq=1000, duty_u16=0)
 blue_pwm = PWM(Pin(BLUE_PIN, Pin.OUT), freq=1000, duty_u16=0)
+
+# Battery ADC (voltage divider on BAT_ADC_PIN -> ADC -> GND)
+BAT_ADC_PIN = 0
+# Battery mapping parameters (adjust if you want different min/max)
+BATTERY_VOLTAGE_MIN = 3.0
+BATTERY_VOLTAGE_MAX = 4.2
+_ADC_REF_VOLTS = 3.3
+
+try:
+    battery_adc = ADC(Pin(BAT_ADC_PIN))
+    battery_adc.atten(ADC.ATTN_11DB)
+except Exception:
+    battery_adc = None
 
 
 def _delay_us(us=5):
@@ -271,6 +284,41 @@ def set_led_rgb(r, g, b):
     red_pwm.duty_u16(_to_u16(r))
     green_pwm.duty_u16(_to_u16(g))
     blue_pwm.duty_u16(_to_u16(b))
+
+
+def _read_adc_raw(adc):
+    try:
+        return adc.read_u16()
+    except Exception:
+        try:
+            v = adc.read()
+            if v is None:
+                return None
+            return int(round((v / 4095.0) * 65535.0))
+        except Exception:
+            return None
+
+
+def get_battery_voltage():
+    if battery_adc is None:
+        return None
+    raw = _read_adc_raw(battery_adc)
+    if raw is None:
+        return None
+    voltage_at_pin = (raw / 65535.0) * _ADC_REF_VOLTS
+    return voltage_at_pin * 2.0
+
+
+def get_battery_percentage():
+    v = get_battery_voltage()
+    if v is None:
+        return None
+    pct = int(round((v - BATTERY_VOLTAGE_MIN) / (BATTERY_VOLTAGE_MAX - BATTERY_VOLTAGE_MIN) * 100.0))
+    if pct < 0:
+        pct = 0
+    elif pct > 100:
+        pct = 100
+    return pct
 
 
 def maybe_enter_brownout_safety_sleep():
@@ -693,8 +741,12 @@ def show_disconnected_led():
 
 
 def show_disconnected_feedback():
-    display_clear()
     show_disconnected_led()
+    p = get_battery_percentage()
+    if p is None:
+        display_clear()
+    else:
+        display_number(p)
 
 
 def main():
@@ -782,6 +834,12 @@ def main():
                 rssi = read_rssi_dbm(sta_if)
                 if rssi is not None:
                     payload = {"rssiDbm": rssi}
+                    try:
+                        bp = get_battery_percentage()
+                        if bp is not None:
+                            payload["batteryPct"] = int(bp)
+                    except Exception:
+                        pass
                     mqtt_client.publish(telemetry_topic.encode(), json.dumps(payload).encode(), qos=0)
 
             # Button edge detection
