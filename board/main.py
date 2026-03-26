@@ -121,6 +121,33 @@ try:
 except Exception:
     battery_adc = None
 
+# Sampling and mapping tweaks
+BATTERY_SAMPLES = 10
+BATTERY_SAMPLE_DELAY_MS = 3
+# Exponential moving average alpha for displayed percentage (0..1)
+BATTERY_EMA_ALPHA = 0.35
+# Shutdown if battery below this (V)
+BATTERY_SHUTDOWN_VOLTAGE = 3.00
+
+# Voltage -> SOC mapping (approximate for 18650). Adjust if you have measured data.
+# Format: (voltage, percent)
+BATTERY_SOC_TABLE = [
+    (3.00, 0),
+    (3.20, 5),
+    (3.40, 10),
+    (3.50, 20),
+    (3.60, 35),
+    (3.70, 50),
+    (3.80, 65),
+    (3.90, 78),
+    (4.00, 88),
+    (4.10, 96),
+    (4.20, 100),
+]
+
+# EMA state (internal)
+_battery_pct_ema = None
+
 
 def _delay_us(us=5):
     time.sleep_us(us)
@@ -300,25 +327,79 @@ def _read_adc_raw(adc):
 
 
 def get_battery_voltage():
+    """Read ADC multiple times (trimmed/averaged) and return battery voltage (V).
+
+    Returns None if ADC not available or reads fail.
+    """
     if battery_adc is None:
         return None
-    raw = _read_adc_raw(battery_adc)
-    if raw is None:
+
+    samples = []
+    for _ in range(BATTERY_SAMPLES):
+        raw = _read_adc_raw(battery_adc)
+        if raw is not None:
+            samples.append(raw)
+        time.sleep_ms(BATTERY_SAMPLE_DELAY_MS)
+
+    if not samples:
         return None
-    voltage_at_pin = (raw / 65535.0) * _ADC_REF_VOLTS
+
+    # Optionally discard min/max to reduce spike influence when sample count is small
+    if len(samples) > 2:
+        samples.sort()
+        samples = samples[1:-1]
+
+    avg_raw = float(sum(samples)) / float(len(samples))
+    voltage_at_pin = (avg_raw / 65535.0) * _ADC_REF_VOLTS
+    # Account for 1:1 divider (two equal resistors)
     return voltage_at_pin * 2.0
 
 
+def _voltage_to_soc_lookup(v):
+    # Linear interpolate over BATTERY_SOC_TABLE
+    if v is None:
+        return None
+    table = BATTERY_SOC_TABLE
+    if v <= table[0][0]:
+        return table[0][1]
+    if v >= table[-1][0]:
+        return table[-1][1]
+    # find interval
+    for i in range(1, len(table)):
+        v0, p0 = table[i - 1]
+        v1, p1 = table[i]
+        if v0 <= v <= v1:
+            if v1 == v0:
+                return p1
+            t = (v - v0) / (v1 - v0)
+            return int(round(p0 + t * (p1 - p0)))
+    return None
+
+
 def get_battery_percentage():
+    """Return smoothed battery percentage (0..100) using lookup mapping and EMA."""
+    global _battery_pct_ema
+
     v = get_battery_voltage()
     if v is None:
         return None
-    pct = int(round((v - BATTERY_VOLTAGE_MIN) / (BATTERY_VOLTAGE_MAX - BATTERY_VOLTAGE_MIN) * 100.0))
-    if pct < 0:
-        pct = 0
-    elif pct > 100:
-        pct = 100
-    return pct
+
+    raw_pct = _voltage_to_soc_lookup(v)
+    if raw_pct is None:
+        # fallback to linear
+        raw_pct = int(round((v - BATTERY_VOLTAGE_MIN) / (BATTERY_VOLTAGE_MAX - BATTERY_VOLTAGE_MIN) * 100.0))
+
+    if raw_pct < 0:
+        raw_pct = 0
+    elif raw_pct > 100:
+        raw_pct = 100
+
+    if _battery_pct_ema is None:
+        _battery_pct_ema = float(raw_pct)
+    else:
+        _battery_pct_ema = (_battery_pct_ema * (1.0 - BATTERY_EMA_ALPHA)) + (raw_pct * BATTERY_EMA_ALPHA)
+
+    return int(round(_battery_pct_ema))
 
 
 def maybe_enter_brownout_safety_sleep():
@@ -326,6 +407,16 @@ def maybe_enter_brownout_safety_sleep():
         return
 
     cause = machine.reset_cause()
+
+    # If battery is critically low, avoid running and protect the cell by sleeping.
+    try:
+        bv = get_battery_voltage()
+        if isinstance(bv, (int, float)) and bv > 0 and bv < BATTERY_SHUTDOWN_VOLTAGE:
+            # Sleep long to avoid deep discharge; will wake on reset/charger
+            time.sleep_ms(50)
+            machine.deepsleep(BROWNOUT_SAFETY_SLEEP_MS)
+    except Exception:
+        pass
 
     unstable_causes = set()
     for name in ["WDT_RESET", "BROWN_OUT_RESET", "BROWNOUT_RESET"]:
