@@ -124,19 +124,40 @@ Important generation rules for AI (validation + anti-hinting)
 - Provide a `description` for each question with a clear explanation of the correct answer and optionally references or short source notes.
 - Optionally add a short `insight` / `interestingFact` field for the quiz admin to show as a curiosity.
 -
--7) Images
-- If possible, include an image for every question. Images improve clarity and engagement and are preferred when they add value.
-- Mandatory images: For questions that require a visual (for example: "What's shown in this image?", "Identify the object in the picture", or any question that cannot be answered without a visual), the AI MUST include an image.
-- Image fields: Provide either `imageDataUrl` (preferred for portability) or `imageUrl`. When embedding with `imageDataUrl`, use a valid data URL such as `data:image/png;base64,<base64-data>`.
-- Accessibility and metadata: Include an `imageAlt` string describing the image content for accessibility, and add optional `imageWidth`/`imageHeight` (pixels) when known to avoid layout shifts.
-- Content policy for images: Images should be used as visual hints or illustrations only. Do not place critical textual answers inside the image unless the question explicitly asks about the image content. If the image must contain text required to answer the question, also include that text in a non-image field (for indexing/search) and mark the question as intentionally image-dependent.
-- Size and performance: Keep each embedded `imageDataUrl` under 512 KB where possible. Compress and resize images before embedding; prefer thumbnails or cropped images.
-
-- **Using internet images:** When embedding images would make the JSON too large or when suitable images exist online, prefer adding an `imageUrl` that points to a reputable internet source rather than embedding `imageDataUrl`. When using internet images:
-  - Ensure the image's license permits reuse (prefer public-domain or Creative Commons) and include `meta.imageSource` or `meta.imageAttribution` with the source URL and brief credit.
-  - Include `imageAlt` for accessibility and `imageWidth`/`imageHeight` when known to reduce layout shifts.
-  - Prefer stable, reputable image URLs and avoid hotlinking from unreliable hosts; consider server-side caching if needed.
-  - Keep internet images reasonably small (thumbnails/pre-compressed) and avoid images that embed the answer text or reveal ordering hints.
+ -7) Images — how app actually expects them
+ - app stores and displays images directly on question objects using the `imageDataUrl` field (string). This must be a valid data URL, for example `data:image/png;base64,<base64-data>`. When saved from the maker UI it also stores an optional `imageName` with the original filename.
+ - Important: the current app implementation DOES NOT automatically download images from external URLs. If your JSON only contains `imageUrl`, app will not convert or display it. For portability and immediate display in app prefer embedding the image as `imageDataUrl`.
+ - Recommended fields (for app compatibility):
+   - `imageDataUrl` (string, preferred) — data URL with base64 payload, e.g. `data:image/jpeg;base64,/9j/4AAQ...`
+   - `imageName` (string, optional) — original filename (e.g. `image.jpg`). app saves this as metadata.
+   - Optional meta fields for other clients: `imageAlt`, `imageWidth`, `imageHeight`, `meta.imageSource`, `meta.imageAttribution`. Note: the current app version does not use these optional fields for rendering, but including them is useful for other consumers.
+ - Size and format limits:
+   - The maker UI limits uploaded file size to 512 KB (MAX_IMAGE_SIZE_BYTES = 512*1024). For compatibility keep embedded `imageDataUrl` under ~512 KB.
+   - Common supported MIME types: `image/png`, `image/jpeg`, `image/webp`, etc. Encoding must be base64.
+ - How to embed an image from the internet (conversion steps the generator/application should follow):
+   1. Download the binary image content (HTTP GET).
+   2. Determine the MIME type from the `Content-Type` header or file extension (e.g., `image/jpeg`).
+   3. Encode the binary content to base64.
+   4. Build the data URL: `data:<mime>;base64,<base64-payload>`.
+   5. Add the `imageDataUrl` field with this data URL and optionally `imageName` (e.g., `quiz-image.jpg`).
+ - As an alternative (if embedding is not possible): include `imageUrl` plus `meta.imageSource` and attribution, but note app will not fetch `imageUrl` automatically — a client or server must ensure availability or convert to a data URL at import time.
+ - Example (short sample question with an embedded image):
+ {
+   "id":"q-img-001",
+   "text":"What do you see in this image?",
+   "answerType":"single",
+   "points":1,
+   "answers":[
+     {"id":"A","text":"Option 1"},
+     {"id":"B","text":"Option 2","correct":true},
+     {"id":"C","text":"Option 3"},
+     {"id":"D","text":"Option 4"}
+   ],
+   "imageDataUrl":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...",
+   "imageName":"example.jpg",
+   "description":"Short explanation of the correct answer."
+ }
+ - Summary: for reliable display in app embed images as `imageDataUrl` (data URL, base64), keep them under ~512 KB, and optionally include `imageName`. If you only use external `imageUrl`, app will not show them without extra server/client conversion.
 
 -8) Ordering-specific
 
