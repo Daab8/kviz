@@ -1,6 +1,7 @@
 BOOT down, RESET down, RESET up, BOOT up
-py -m esptool --chip esp32c3 --port COM4 erase-flash
-py -m esptool --chip esp32c3 --port COM4 --baud 460800 write-flash -z 0x0 C:\ESP32_GENERIC_C3-20251209-v1.27.0.bin
+py -m esptool --chip esp32c3 erase-flash
+py -m esptool --chip esp32c3 --baud 460800 write-flash -z 0x0 C:\ESP32_GENERIC_C3-20251209-v1.27.0.bin
+F6
 
 
 zoznam suciastok:
