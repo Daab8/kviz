@@ -267,6 +267,7 @@
                 <th>WiFi</th>
                 <th>Batéria</th>
                 <th>Posledná voľba</th>
+                <th>Priem. rýchlosť</th>
                 <th>Body</th>
                 <th>Akcia</th>
               </tr>
@@ -705,6 +706,7 @@
             <td><span class="pill wifi-pill ${signal.cls}" title="${esc(signal.title)}">${signal.label}</span></td>
             <td>${battery !== null ? `<span class="pill" title="Batéria: ${battery}%">${battery}%</span>` : "-"}</td>
             <td>${(g.lastSelection || []).join(" ") || "-"}</td>
+            <td>${Number.isFinite(g.avgResponsePct) ? (`${Number(g.avgResponsePct).toFixed(1)}%`) : '-'}</td>
             <td>${pointsCell}</td>
             <td>${actionBtn}</td>
           </tr>`;

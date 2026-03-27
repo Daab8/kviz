@@ -167,6 +167,8 @@ function ensureGamepad(id) {
       submitted: false,
       lastSelection: [],
       lastResult: null,
+      // per-round normalized response fractions (0..1)
+      speedPercentages: [],
     });
   }
   const gp = gamepads.get(id);
@@ -283,6 +285,28 @@ function evaluateAnswer(question, selection) {
     correct: sameSequence(chosen, correctSel),
     timedOut: false,
   };
+}
+
+function computeChosenPctFromTiming(timing) {
+  if (!timing || typeof timing !== 'object') return null;
+  const asNum = (v) => {
+    if (v === null || v === undefined) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const start = asNum(timing.startMs);
+  const choice = asNum(timing.choiceMs);
+  const end = asNum(timing.endMs);
+  if (start === null || end === null) return null;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  if (end <= start) return null;
+  const actualChoice = Number.isFinite(choice) ? Math.max(start, Math.min(choice, end)) : end;
+  const denom = Math.max(1, end - start);
+  const frac = (actualChoice - start) / denom;
+  if (!Number.isFinite(frac)) return null;
+  if (frac < 0) return 0;
+  if (frac > 1) return 1;
+  return frac;
 }
 
 function compactControlPayloadForGamepad(payload) {
@@ -507,6 +531,7 @@ function applySnapshotData(data) {
       submitted: Boolean(g.submitted),
       lastSelection: normalizeSelection(g.lastSelection || []),
       lastResult: g.lastResult || null,
+      speedPercentages: Array.isArray(g.speedPercentages) ? g.speedPercentages : [],
     });
   }
 
@@ -558,13 +583,25 @@ function sessionStateForClient() {
   );
 
   const leaderboard = Array.from(gamepads.values())
-    .map((g) => ({
-      id: g.id,
-      gamepadNumber: Number(g.gamepadNumber || 0),
-      name: g.name || g.id,
-      points: Number(g.points || 0),
-    }))
-    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
+    .map((g) => {
+      const sp = Array.isArray(g.speedPercentages) ? g.speedPercentages : [];
+      const avgFrac = sp.length ? sp.reduce((a, b) => a + b, 0) / sp.length : null;
+      const avgPct = avgFrac !== null ? Math.round(avgFrac * 1000) / 10 : null; // 1 decimal percent
+      return {
+        id: g.id,
+        gamepadNumber: Number(g.gamepadNumber || 0),
+        name: g.name || g.id,
+        points: Number(g.points || 0),
+        avgResponsePct: avgPct,
+      };
+    })
+    .sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      const aAvg = a.avgResponsePct === null ? Infinity : a.avgResponsePct;
+      const bAvg = b.avgResponsePct === null ? Infinity : b.avgResponsePct;
+      if (aAvg !== bAvg) return aAvg - bAvg; // lower percent = faster
+      return a.name.localeCompare(b.name);
+    });
 
   const gamepadList = Array.from(gamepads.values())
     .filter((g) => !(g.hiddenByAdmin && !g.connected))
@@ -583,6 +620,13 @@ function sessionStateForClient() {
       lastResult: g.lastResult || null,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+  // attach avgResponsePct to gamepadList entries for UI
+  for (const gp of gamepadList) {
+    const g = gamepads.get(gp.id);
+    const sp = g && Array.isArray(g.speedPercentages) ? g.speedPercentages : [];
+    const avgFrac = sp.length ? sp.reduce((a, b) => a + b, 0) / sp.length : null;
+    gp.avgResponsePct = avgFrac !== null ? Math.round(avgFrac * 1000) / 10 : null;
+  }
 
   const roundsWithResponders = session.questionHistory.filter(
     (item) => Number(item && item.totalResponders ? item.totalResponders : 0) > 0
@@ -725,6 +769,8 @@ function beginVotingPhase() {
     answerType,
     selections: {},
     submitted: {},
+    // per-gamepad timings collected from clients (startMs, choiceMs, endMs)
+    timings: {},
     expectedResponderIds: Array.from(gamepads.values())
       .filter((g) => g.connected)
       .map((g) => g.id),
@@ -847,6 +893,23 @@ function finalizeRound() {
       gp.voted = answered;
       gp.submitted = Boolean((round.submitted || {})[id]);
       gp.lastSelection = selected;
+      // compute response percentage from client-provided timings, if any
+      // If the gamepad did not answer (timed out / no selection), treat as worst (100%).
+      let responsePct = null;
+      try {
+        if (round && round.timings && round.timings[id]) {
+          responsePct = computeChosenPctFromTiming(round.timings[id]);
+        } else if (!answered) {
+          responsePct = 1.0;
+        }
+      } catch (e) {}
+
+      // persist per-gamepad speed stats
+      if (Number.isFinite(responsePct)) {
+        gp.speedPercentages = Array.isArray(gp.speedPercentages) ? gp.speedPercentages : [];
+        gp.speedPercentages.push(responsePct);
+      }
+
       gp.lastResult = {
         questionId: question.id,
         correct: evalResult.correct,
@@ -854,6 +917,7 @@ function finalizeRound() {
         pointsAwarded,
         totalPoints: gp.points,
         at: Date.now(),
+        responsePct: Number.isFinite(responsePct) ? responsePct : null,
       };
     }
 
@@ -866,6 +930,7 @@ function finalizeRound() {
       timedOut: evalResult.timedOut,
       pointsAwarded,
       totalPoints: gp ? gp.points : pointsAwarded,
+      responsePct: (typeof gp !== 'undefined' && gp.lastResult) ? gp.lastResult.responsePct : null,
     });
 
     publishToGamepad(id, "control", {
@@ -947,6 +1012,17 @@ function handleSubmitMessage(gamepadId, payload) {
 
   if ((session.stage === "collecting" || session.stage === "voting") && session.currentRound) {
     session.currentRound.selections[gamepadId] = selection;
+    // store timing payload if provided (client-monotonic measurements)
+    try {
+      const t = payload.timing;
+      if (t && typeof t === 'object') {
+        if (!session.currentRound.timings) session.currentRound.timings = {};
+        const startMs = (t.startMs !== null && t.startMs !== undefined && String(t.startMs).trim() !== '' && Number.isFinite(Number(t.startMs))) ? Number(t.startMs) : null;
+        const choiceMs = (t.choiceMs !== null && t.choiceMs !== undefined && String(t.choiceMs).trim() !== '' && Number.isFinite(Number(t.choiceMs))) ? Number(t.choiceMs) : null;
+        const endMs = (t.endMs !== null && t.endMs !== undefined && String(t.endMs).trim() !== '' && Number.isFinite(Number(t.endMs))) ? Number(t.endMs) : null;
+        session.currentRound.timings[gamepadId] = { startMs, choiceMs, endMs };
+      }
+    } catch (e) {}
     session.currentRound.submitted[gamepadId] = true;
     gp.voted = selection.length > 0;
     gp.submitted = true;

@@ -87,6 +87,10 @@
         let reconnectTimer = null;
         let identifyDisplayEnabled = false;
         let identifyNumber = null;
+        // local monotonic timings (ms, performance.now())
+        let startMs = null;
+        let choiceMs = null;
+        let endMs = null;
 
         function randId() { return 'g-' + Math.random().toString(36).slice(2,9); }
 
@@ -172,7 +176,19 @@
 
         function publishSubmit() {
           if (!client || !gpId || !client.connected) { appendLog('publishSubmit blocked: not connected'); return; }
-          try { client.publish(`gamepad/${gpId}/submit`, JSON.stringify({ selection }), { qos:1 }); appendLog('OUT ▶ submit ' + JSON.stringify({ selection })); } catch (e) { appendLog('OUT ERROR ' + e.message); }
+          try {
+            try { endMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); } catch (e) { endMs = Date.now(); }
+            const payload = {
+              selection,
+              timing: {
+                startMs: Number.isFinite(Number(startMs)) ? Number(startMs) : null,
+                choiceMs: Number.isFinite(Number(choiceMs)) ? Number(choiceMs) : null,
+                endMs: Number.isFinite(Number(endMs)) ? Number(endMs) : null,
+              },
+            };
+            client.publish(`gamepad/${gpId}/submit`, JSON.stringify(payload), { qos:1 });
+            appendLog('OUT ▶ submit ' + JSON.stringify(payload));
+          } catch (e) { appendLog('OUT ERROR ' + e.message); }
         }
 
         function handleControl(payload) {
@@ -198,6 +214,10 @@
             if (phase === 'voting') {
               selection = [];
               renderSelectionDisplay(); // will show blank/--
+              // start local timer for this voting round
+              try { startMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); } catch (e) { startMs = Date.now(); }
+              choiceMs = null;
+              endMs = null;
               setLedColor(0,0,255);
             } else if (phase === 'collecting') {
               setLedColor(0,0,0);
@@ -297,6 +317,8 @@
         function applyButton(button) {
           // Device ignores button presses outside voting
           if (currentPhase !== 'voting') return;
+          // capture previous selection to detect real changes
+          const prevSel = Array.isArray(selection) ? selection.slice() : [];
 
           if (button === 'R') {
             if (hasVote()) {
@@ -323,6 +345,15 @@
             if (selection.length >= 4) return;
             selection = [...selection, button];
           }
+
+          // only record choice time when real selection change occurred
+          try {
+            const prevStr = prevSel.join('|');
+            const newStr = (selection || []).join('|');
+            if (prevStr !== newStr && selection.length > 0) {
+              try { choiceMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); } catch (e) { choiceMs = Date.now(); }
+            }
+          } catch (e) {}
 
           renderSelectionDisplay();
         }

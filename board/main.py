@@ -498,6 +498,11 @@ selected = []
 identify_display_enabled = False
 identify_number = None
 
+# Local monotonic timing (ms) recorded with time.ticks_ms()
+start_ms = None
+choice_ms = None
+end_ms = None
+
 _mqtt_client_ref = {"client": None, "submit_topic": "", "gamepad_id": ""}
 
 
@@ -525,10 +530,28 @@ def render_selection_display():
 
 
 def publish_submit(mqtt_client, submit_topic, gamepad_id):
+    global start_ms, choice_ms, end_ms
+    try:
+        end_ms = time.ticks_ms()
+    except Exception:
+        try:
+            end_ms = int(time.time() * 1000)
+        except Exception:
+            end_ms = None
+
     payload = {
         "selection": selected,
+        "timing": {
+            "startMs": start_ms if (start_ms is not None) else None,
+            "choiceMs": choice_ms if (choice_ms is not None) else None,
+            "endMs": end_ms if (end_ms is not None) else None,
+        },
     }
-    mqtt_client.publish(submit_topic.encode(), json.dumps(payload).encode(), qos=1)
+    try:
+        mqtt_client.publish(submit_topic.encode(), json.dumps(payload).encode(), qos=1)
+    except Exception:
+        # best-effort: ignore publish failures
+        pass
 
 
 def publish_telemetry_status(status_type, status, detail=""):
@@ -641,7 +664,7 @@ def perform_ota_update(url, expected_sha256=None):
 
 
 def apply_button_input(button_label):
-    global selected
+    global selected, start_ms, choice_ms, end_ms
 
     if current_phase != "voting":
         return
@@ -654,6 +677,12 @@ def apply_button_input(button_label):
 
     if button_label not in ["A", "B", "C", "D"]:
         return
+
+    # capture previous selection to detect real changes
+    try:
+        prev_sel = list(selected)
+    except Exception:
+        prev_sel = []
 
     if current_answer_type == "single":
         if has_vote():
@@ -675,12 +704,27 @@ def apply_button_input(button_label):
             return
         selected = selected + [button_label]
 
+    # record choice time only when selection actually changed and selection is non-empty
+    try:
+        prev_str = "|".join(prev_sel)
+        new_str = "|".join(selected or [])
+        if prev_str != new_str and len(selected) > 0:
+            try:
+                choice_ms = time.ticks_ms()
+            except Exception:
+                try:
+                    choice_ms = int(time.time() * 1000)
+                except Exception:
+                    choice_ms = None
+    except Exception:
+        pass
+
     if has_vote():
         render_selection_display()
     else:
         display_clear()
 def handle_control_message(data):
-    global current_phase, current_question_id, current_answer_type, identify_display_enabled, identify_number
+    global current_phase, current_question_id, current_answer_type, identify_display_enabled, identify_number, start_ms, choice_ms, end_ms
 
     msg_type = str(data.get("type", "")).lower()
 
@@ -760,6 +804,16 @@ def handle_control_message(data):
         if phase == "voting":
             clear_selection()
             display_clear()
+            # start local monotonic timer for this voting round
+            try:
+                start_ms = time.ticks_ms()
+            except Exception:
+                try:
+                    start_ms = int(time.time() * 1000)
+                except Exception:
+                    start_ms = None
+            choice_ms = None
+            end_ms = None
             set_led_rgb(0, 0, 255)
         elif phase == "collecting":
             set_led_rgb(0, 0, 0)
