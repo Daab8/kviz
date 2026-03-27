@@ -660,8 +660,11 @@ def apply_button_input(button_label):
             return
         selected = [button_label]
     elif current_answer_type == "multiple":
+        # For multiple-answer questions, pressing a choice selects it and it remains
+        # selected until cleared with the R button. Do not toggle on repeated presses.
         if button_label in selected:
-            selected = [x for x in selected if x != button_label]
+            # already selected; no change
+            pass
         else:
             selected = selected + [button_label]
             selected.sort()

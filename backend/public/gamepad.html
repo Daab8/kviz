@@ -85,6 +85,8 @@
         let selection = [];
         let telemetryTimer = null;
         let reconnectTimer = null;
+        let identifyDisplayEnabled = false;
+        let identifyNumber = null;
 
         function randId() { return 'g-' + Math.random().toString(36).slice(2,9); }
 
@@ -122,6 +124,8 @@
             try { client.subscribe(`gamepad/${gpId}/result`, { qos: 1 }); } catch (e) {}
             try { publishTelemetry(); } catch (e) {}
             telemetryTimer = setInterval(publishTelemetry, 5000);
+            // Mirror device: ensure LED off when connected and not voting
+            if (currentPhase !== 'voting') setLedColor(0,0,0);
           });
 
           client.on('message', (topic, msg) => {
@@ -139,6 +143,9 @@
           client.on('close', () => {
             setStatus('disconnected');
             if (telemetryTimer) { clearInterval(telemetryTimer); telemetryTimer = null; }
+            // Mirror device: show stable red LED and battery when disconnected
+            setLedColor(255,0,0);
+            setDisplay(100);
             scheduleReconnect();
           });
         }
@@ -151,7 +158,7 @@
         function publishTelemetry() {
           if (!client || !gpId || !client.connected) return;
           const rssi = -40 - Math.floor(Math.random() * 30);
-          const battery = 20 + Math.floor(Math.random() * 81); // 20..100%
+          const battery = 100; // virtual device always reports 100%
           try { client.publish(`gamepad/${gpId}/telemetry`, JSON.stringify({ rssiDbm: rssi, batteryPct: battery }), { qos:0 }); } catch (e) {}
         }
 
@@ -171,27 +178,108 @@
         function handleControl(payload) {
           const type = (payload && payload.type) ? String(payload.type).toLowerCase() : '';
           if (type === 'phase') {
-            currentPhase = String(payload.phase || 'idle');
+            const phase = String(payload.phase || 'idle');
+            currentPhase = phase;
+
+            // optional identify fields may come in the phase payload
+            if ('identifyDisplayEnabled' in payload) identifyDisplayEnabled = Boolean(payload.identifyDisplayEnabled);
+            if ('identifyNumber' in payload) {
+              const n = Number(payload.identifyNumber);
+              identifyNumber = Number.isFinite(n) && n > 0 ? n : null;
+            }
+
             if (payload.question && payload.question.id) {
               currentQuestion = payload.question;
-            } else { currentQuestion = null; }
-            if (currentPhase === 'question') { selection = []; renderSelectionDisplay(); }
-          }
-          if (type === 'submit-request') { publishSubmit(); }
-          if (type === 'identify-display') {
-            const enabled = Boolean(payload.enabled);
-            if (enabled) {
-              if (payload.identifyNumber != null) setDisplay(Number(payload.identifyNumber));
             } else {
-              if (currentPhase !== 'voting') setDisplay('--');
+              currentQuestion = null;
             }
+
+            // Mirror device behavior for display and LED per phase
+            if (phase === 'voting') {
+              selection = [];
+              renderSelectionDisplay(); // will show blank/--
+              setLedColor(0,0,255);
+            } else if (phase === 'collecting') {
+              setLedColor(0,0,0);
+              if (identifyDisplayEnabled) {
+                if (identifyNumber != null) setDisplay(Number(identifyNumber)); else setDisplay('--');
+              } else {
+                if (hasVote()) renderSelectionDisplay(); else setDisplay('--');
+              }
+            } else if (phase === 'question' || phase === 'welcome' || phase === 'idle') {
+              selection = [];
+              setLedColor(0,0,0);
+              if (identifyDisplayEnabled) {
+                if (identifyNumber != null) setDisplay(Number(identifyNumber)); else setDisplay('--');
+              } else {
+                setDisplay('--');
+              }
+            } else if (phase === 'review' || phase === 'reveal') {
+              if (identifyDisplayEnabled) {
+                if (identifyNumber != null) setDisplay(Number(identifyNumber));
+              }
+            } else if (phase === 'finished') {
+              setLedColor(0,0,0);
+              if (identifyDisplayEnabled) {
+                if (identifyNumber != null) setDisplay(Number(identifyNumber));
+              }
+            }
+
+            return;
+          }
+
+          if (type === 'submit-request') {
+            // server requests current selection -> publish submit (device behavior)
+            publishSubmit();
+            // mirror device: turn LED off after submit
+            setLedColor(0,0,0);
+            return;
+          }
+
+          if (type === 'identify-display') {
+            identifyDisplayEnabled = Boolean(payload.enabled);
+            if ('identifyNumber' in payload) {
+              const n = Number(payload.identifyNumber);
+              identifyNumber = Number.isFinite(n) && n > 0 ? n : null;
+            }
+
+            // Only update visible display when NOT in voting (device behaviour)
+            if (currentPhase !== 'voting') {
+              if (identifyDisplayEnabled) {
+                if (identifyNumber != null) setDisplay(Number(identifyNumber)); else setDisplay('--');
+              } else {
+                if (currentPhase === 'collecting') {
+                  if (hasVote()) renderSelectionDisplay(); else setDisplay('--');
+                } else {
+                  setDisplay('--');
+                }
+              }
+            }
+            return;
           }
         }
 
-        function handleResult(payload) { if (!payload) return; if (payload.correct) setLedColor(0,200,0); else setLedColor(200,0,0); setDisplay(Number(payload.totalPoints || 0)); }
+        function handleResult(payload) {
+          if (!payload) return;
+          if (payload.correct) setLedColor(0,255,0);
+          else setLedColor(255,0,0);
+
+          if (identifyDisplayEnabled && currentPhase !== 'voting') {
+            if (identifyNumber != null) setDisplay(Number(identifyNumber));
+          } else {
+            setDisplay(Number(payload.totalPoints || 0));
+          }
+        }
 
         function hasVote() { return Array.isArray(selection) && selection.length > 0; }
-        function renderSelectionDisplay() { if (!hasVote()) { setDisplay('--'); setLedColor(0,0,0); return; } setDisplay(selection.join('')); if (currentPhase === 'voting') setLedColor(0,0,200); }
+        function renderSelectionDisplay() {
+          if (!hasVote()) {
+            setDisplay('--');
+            return;
+          }
+          setDisplay(selection.join(''));
+          if (currentPhase === 'voting') setLedColor(0,0,255);
+        }
 
         // button wiring
         document.getElementById('btnA').addEventListener('click', () => { applyButton('A'); });
@@ -201,14 +289,36 @@
         document.getElementById('btnR').addEventListener('click', () => { applyButton('R'); });
 
         function applyButton(button) {
-          if (currentPhase !== 'voting') { if (button === 'R') { publishChoice('R'); } else publishChoice(button); return; }
-          if (button === 'R') { if (hasVote()) { selection = []; renderSelectionDisplay(); publishChoice('R'); } return; }
+          // Device ignores button presses outside voting
+          if (currentPhase !== 'voting') return;
+
+          if (button === 'R') {
+            if (hasVote()) {
+              selection = [];
+              renderSelectionDisplay();
+            }
+            return;
+          }
+
           if (!['A','B','C','D'].includes(button)) return;
           const type = currentQuestion && currentQuestion.answerType ? currentQuestion.answerType : 'single';
-          if (type === 'single') { if (hasVote()) return; selection = [button]; }
-          else if (type === 'multiple') { if (selection.includes(button)) selection = selection.filter(x => x !== button); else selection = [...selection, button].sort(); }
-          else { if (selection.includes(button)) return; if (selection.length >= 4) return; selection = [...selection, button]; }
-          renderSelectionDisplay(); publishChoice(button);
+
+          if (type === 'single') {
+            if (hasVote()) return;
+            selection = [button];
+          } else if (type === 'multiple') {
+            // additive-only: pressing a choice selects it and it remains until cleared with R
+            if (!selection.includes(button)) {
+              selection = [...selection, button].sort();
+            }
+          } else {
+            // ordering
+            if (selection.includes(button)) return;
+            if (selection.length >= 4) return;
+            selection = [...selection, button];
+          }
+
+          renderSelectionDisplay();
         }
 
         // start automatically
