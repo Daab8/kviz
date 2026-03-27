@@ -585,36 +585,78 @@ def _sha256_hex(data):
 def perform_ota_update(url, expected_sha256=None):
     if requests is None:
         raise OSError("urequests missing")
-
     response = None
+    temp_f = None
     try:
         response = requests.get(url)
         status = getattr(response, "status_code", 200)
         if status != 200:
             raise OSError("HTTP {}".format(status))
 
-        body = response.content
-        # Normalize body to bytes (urequests may return str on some builds)
-        if body is None:
-            raise OSError("empty payload")
-        if isinstance(body, str):
-            body = body.encode("utf-8")
-        if not body:
-            raise OSError("empty payload")
-
-        if expected_sha256:
-            got = _sha256_hex(body)
-            want = str(expected_sha256).strip().lower()
-            if got and got != want:
-                raise OSError("sha mismatch")
-
-        # Write to a temp file first
-        with open(OTA_TEMP_FILE, "wb") as f:
-            f.write(body)
+        # Stream the response to avoid allocating the whole payload in RAM.
+        hasher = None
+        if expected_sha256 and hashlib is not None and ubinascii is not None:
             try:
-                f.flush()
+                hasher = hashlib.sha256()
+            except Exception:
+                hasher = None
+
+        temp_f = open(OTA_TEMP_FILE, "wb")
+        try:
+            raw = getattr(response, "raw", None)
+            if raw and hasattr(raw, "read"):
+                # Read in small chunks
+                while True:
+                    chunk = raw.read(1024)
+                    if not chunk:
+                        break
+                    if isinstance(chunk, str):
+                        chunk = chunk.encode("utf-8")
+                    temp_f.write(chunk)
+                    if hasher is not None:
+                        try:
+                            hasher.update(chunk)
+                        except Exception:
+                            pass
+            else:
+                body = getattr(response, "content", None)
+                if body is None:
+                    # Fallback for some urequests variants
+                    readfn = getattr(response, "read", None)
+                    if callable(readfn):
+                        body = readfn()
+                if isinstance(body, str):
+                    body = body.encode("utf-8")
+                if not body:
+                    raise OSError("empty payload")
+                temp_f.write(body)
+                if hasher is not None:
+                    try:
+                        hasher.update(body)
+                    except Exception:
+                        pass
+            try:
+                temp_f.flush()
             except Exception:
                 pass
+        finally:
+            try:
+                temp_f.close()
+            except Exception:
+                pass
+
+        if expected_sha256 and hasher is not None:
+            try:
+                got = ubinascii.hexlify(hasher.digest()).decode().lower()
+            except Exception:
+                got = None
+            want = str(expected_sha256).strip().lower()
+            if got and got != want:
+                try:
+                    os.remove(OTA_TEMP_FILE)
+                except Exception:
+                    pass
+                raise OSError("sha mismatch")
 
     finally:
         if response is not None:
@@ -645,8 +687,13 @@ def perform_ota_update(url, expected_sha256=None):
     if expected_sha256 and (hashlib is not None and ubinascii is not None):
         try:
             with open(OTA_TARGET_FILE, "rb") as f:
-                content = f.read()
-            got2 = _sha256_hex(content)
+                h2 = hashlib.sha256()
+                while True:
+                    chunk = f.read(1024)
+                    if not chunk:
+                        break
+                    h2.update(chunk)
+            got2 = ubinascii.hexlify(h2.digest()).decode().lower()
             want2 = str(expected_sha256).strip().lower()
             if got2 and got2 != want2:
                 raise OSError("sha mismatch after install")

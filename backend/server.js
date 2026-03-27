@@ -894,18 +894,16 @@ function finalizeRound() {
       gp.submitted = Boolean((round.submitted || {})[id]);
       gp.lastSelection = selected;
       // compute response percentage from client-provided timings, if any
-      // If the gamepad did not answer (timed out / no selection), treat as worst (100%).
+      // NOTE: for tie-breaks we only record timing percentages from CORRECT answers.
       let responsePct = null;
       try {
         if (round && round.timings && round.timings[id]) {
           responsePct = computeChosenPctFromTiming(round.timings[id]);
-        } else if (!answered) {
-          responsePct = 1.0;
         }
       } catch (e) {}
 
-      // persist per-gamepad speed stats
-      if (Number.isFinite(responsePct)) {
+      // persist per-gamepad speed stats only for correct answers
+      if (evalResult.correct && Number.isFinite(responsePct)) {
         gp.speedPercentages = Array.isArray(gp.speedPercentages) ? gp.speedPercentages : [];
         gp.speedPercentages.push(responsePct);
       }
@@ -917,7 +915,7 @@ function finalizeRound() {
         pointsAwarded,
         totalPoints: gp.points,
         at: Date.now(),
-        responsePct: Number.isFinite(responsePct) ? responsePct : null,
+        responsePct: (evalResult.correct && Number.isFinite(responsePct)) ? responsePct : null,
       };
     }
 
