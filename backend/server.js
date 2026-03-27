@@ -1235,6 +1235,33 @@ app.post("/api/session/next", (req, res) => {
   }
 });
 
+app.post("/api/session/finalize", (req, res) => {
+  try {
+    // Only allow finalize when we're in reveal/review and at last question
+    if (!(session.stage === "reveal" || session.stage === "review")) {
+      throw new Error("Can only finalize after reveal/review stage");
+    }
+    if (session.questionIndex + 1 < session.questionIds.length) {
+      throw new Error("Not the last question");
+    }
+
+    // Mark session finished but do NOT broadcast a new phase to gamepads.
+    // This preserves the last published result display on gamepads.
+    setStage("finished");
+    // Broadcast a short control message instructing gamepads to turn their
+    // LEDs off while preserving the displayed totals we already sent via
+    // result messages.
+    try {
+      broadcastControl({ type: "final-stats" });
+    } catch (e) {}
+    // Persist state
+    saveSnapshot();
+    return res.json({ ok: true, state: sessionStateForClient() });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Failed to finalize quiz" });
+  }
+});
+
 app.post("/api/session/prev", (req, res) => {
   try {
     if (session.stage === "voting" || session.stage === "collecting") {

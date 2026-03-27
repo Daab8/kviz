@@ -23,7 +23,7 @@ Questions array: question object schema (complete)
   - `single`: exactly one correct answer.
   - `multiple`: multiple answers may be correct (scoring policy: exact-match by default).
   - `ordering`: answers should be ordered; `ordering` field below defines the correct order.
-- `points` (integer, optional): 1..5 — difficulty/weight. Default 1. Use 1 (easy) to 5 (very hard).
+- `points` (integer): All questions must be worth 1 point. Set `points` to `1` for every question.
 - `answers` (array of objects, required for `single` and `multiple`, recommended for `ordering`): each answer object:
     - `id` (string, required): short label for answer, typically single uppercase letter `A`, `B`, `C`, ... (the system normalizes to uppercase). Use unique IDs per question.
     - `text` (string, required): answer text.
@@ -67,7 +67,7 @@ Examples (questions)
   "id":"q-010",
   "text":"Select all prime numbers",
   "answerType":"multiple",
-  "points":2,
+  "points":1,
   "answers":[
     {"id":"A","text":"2","correct":true},
     {"id":"B","text":"3","correct":true},
@@ -82,7 +82,7 @@ Examples (questions)
   "id":"q-020",
   "text":"Order these historical events from earliest to latest",
   "answerType":"ordering",
-  "points":3,
+  "points":1,
   "answers":[
     {"id":"A","text":"Fall of Constantinople"},
     {"id":"B","text":"Discovery of America"},
@@ -107,17 +107,17 @@ Important generation rules for AI (validation + anti-hinting)
 3) Plausible distractors
 - For single/multiple choice, produce plausible distractors: same category / similar length / similar phrasing. Avoid obviously wrong items (unless intentionally easy). Keep distractors grammatically consistent with the question.
 
--4) Answer counts and formatting
+4) Answer counts and formatting
 - Every question MUST have exactly 4 answer options (`A`,`B`,`C`,`D`). Do not generate fewer or more.
 - For `single` questions exactly one of the four answers must be correct.
-- For `multiple` questions any number of the four answers may be correct (from 1 to 4). Design distractors accordingly.
+- For `multiple` questions there must be between 2 and 4 answers marked as correct (i.e., exactly 2, 3, or 4 correct options). Design distractors accordingly.
 - Keep answer text concise (one sentence or phrase). Use sentence capitalization.
 - Keep answer text concise (one sentence or phrase). Use sentence capitalization.
 
 5) Points/difficulty
-- Assign `points` 1–5. The AI should set points consistently with difficulty. Provide an optional `meta.difficultyReason` explaining the assigned points.
+- All questions must have `points` set to `1` (one point each). Do not vary point values — every question contributes one point to the quiz total. The AI should still ensure questions meet the difficulty floor; use `meta.difficultyReason` to document the intended difficulty if desired.
 
-- Difficulty floor: Questions MUST be at least high-school level (secondary school). Avoid trivial or primary-school-level questions; prefer items that require understanding, reasoning, or multi-step recall. Align `points` (1–5) with this requirement and document the rationale in `meta.difficultyReason` when helpful.
+- Difficulty floor: Questions MUST be at least high-school level (secondary school). Avoid trivial or primary-school-level questions; prefer items that require understanding, reasoning, or multi-step recall. If helpful, document the rationale for difficulty in `meta.difficultyReason`, but keep `points` equal to `1` for all items.
 
 
 -6) Explanations and insights
@@ -151,19 +151,19 @@ Important generation rules for AI (validation + anti-hinting)
 - Ensure every question has a unique `id`.
 - Ensure every question has exactly four answers with IDs `A`,`B`,`C`,`D`.
 - Ensure each question with `answerType: single` has exactly one `correct: true`.
-- For `multiple`, ensure at least one answer has `correct: true` (1..4 correct answers allowed) and that this is intentional.
+  - For `multiple`, ensure there are between 2 and 4 answers marked as `correct: true` (2..4 correct answers allowed) and that this is intentional.
 - For `ordering`, ensure `ordering` references all four provided answer IDs exactly once.
 - Ensure answer `id`s are the single uppercase letters `A`,`B`,`C`,`D`.
 - Reject or rewrite answers where answer text repeats the full question text or trivially hints the solution.
 - Check for duplicate answer texts and remove/adjust duplicates.
-- Verify `points` inside range 1–5.
+  - Verify every question has `points` set to `1` (one point per question).
 
 10) Content and safety
 - Ensure no copyrighted full passages are reproduced verbatim unless licensed. Prefer short paraphrases for extracts.
 - Avoid sensitive personal data, explicit, or disallowed content.
 
 AI generation prompt template (how to instruct the AI)
-- "Generate N questions for a quiz about TOPIC. Output a JSON object with arrays `questions`, `quizzes`, `categories` as described. For each question include: `id`, `text`, `answerType` (single|multiple|ordering), `answers` (with `id` letters and `text`), `points` (1-5), and `description` (explanation). Ensure IDs are unique. Follow these validation rules: (list checks above). Avoid answers that reveal the correct answer (e.g., do not include years in ordering answers). Include 2 sample `quizzes` mapping these questions. Provide an example `categories` entry if needed."
+  - "Generate N questions for a quiz about TOPIC. Output a JSON object with arrays `questions`, `quizzes`, `categories` as described. For each question include: `id`, `text`, `answerType` (single|multiple|ordering), `answers` (with `id` letters and `text`), `points` (1), and `description` (explanation). Ensure IDs are unique. Follow these validation rules: (list checks above). Avoid answers that reveal the correct answer (e.g., do not include years in ordering answers). Include 2 sample `quizzes` mapping these questions. Provide an example `categories` entry if needed."
 
 Complete sample JSON (small quiz)
 {
@@ -214,7 +214,7 @@ Updated checklist (additions)
 
 - [ ] All texts are written in Slovak.
 - [ ] Each question has exactly four answers (`A`..`D`).
-- [ ] `multiple` questions may have 1..4 correct answers.
+- [ ] `multiple` questions may have 2..4 correct answers.
 - [ ] `ordering` questions include an `ordering` field, `shuffleAnswers: true`.
 - [ ] No question refers to future events or contains the answer inside the question text.
 - [ ] Fact-checked or marked with `meta.reviewRequired` when verification is not possible.

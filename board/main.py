@@ -710,6 +710,17 @@ def handle_control_message(data):
             pass
         return
 
+    # Final statistics: turn LED off but preserve whatever is currently
+    # shown on the display (e.g. total points). This is triggered by the
+    # admin finalization action so devices keep showing totals but LEDs
+    # are switched off.
+    if msg_type == "final-stats" or msg_type == "finalstats":
+        try:
+            set_led_rgb(0, 0, 0)
+        except Exception:
+            pass
+        return
+
     if msg_type == "identify-display":
         identify_display_enabled = bool(data.get("enabled", False))
         raw_number = data.get("identifyNumber")

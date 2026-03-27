@@ -236,6 +236,12 @@
             return;
           }
 
+          if (type === 'final-stats') {
+            // Final stats: turn LED off but keep display unchanged
+            setLedColor(0,0,0);
+            return;
+          }
+
           if (type === 'identify-display') {
             identifyDisplayEnabled = Boolean(payload.enabled);
             if ('identifyNumber' in payload) {

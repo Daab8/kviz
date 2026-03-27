@@ -418,8 +418,14 @@
           const sec = votingSecondsForType(currentQuestion && currentQuestion.answerType);
           return `Spustiť hlasovanie (${sec}s)`;
         }
-        if (stage === "review") return "Ďalšia otázka";
-        if (stage === "reveal") return "Ďalšia otázka";
+        if (stage === "review") {
+          if (questionIndex + 1 >= totalQuestions) return "Finálne štatistiky";
+          return "Ďalšia otázka";
+        }
+        if (stage === "reveal") {
+          if (questionIndex + 1 >= totalQuestions) return "Finálne štatistiky";
+          return "Ďalšia otázka";
+        }
         if (stage === "finished") return "Kvíz ukončený";
         return "Ďalej";
       }
@@ -805,6 +811,18 @@
             if (state && state.stage === 'welcome') {
               nextDisableUntil = Date.now() + 3000;
               ui.nextBtn.disabled = true;
+            }
+          } catch (e) {}
+
+          // If this is the final reveal, show final statistics and finish
+          // the quiz but do NOT toggle identify-display (keeps total points
+          // visible on gamepads). Use a dedicated finalize endpoint.
+          try {
+            const isFinalReveal = state && state.stage === 'reveal' && Number(state.questionIndex || 0) + 1 >= Number(state.totalQuestions || 0);
+            if (isFinalReveal) {
+              await api('/api/session/finalize', { method: 'POST' });
+              await refreshState();
+              return;
             }
           } catch (e) {}
 
