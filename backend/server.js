@@ -75,6 +75,8 @@ const session = {
   collectingEndsAt: null,
   currentRound: null,
   questionHistory: [],
+  // Per-question shuffle maps: { [questionId]: { letterToOriginal, originalToLetter, displayAnswers, order } }
+  questionShuffles: {},
 };
 
 let votingTimer = null;
@@ -128,6 +130,45 @@ function votingDurationMsForAnswerType(answerType) {
   if (type === "ordering") return VOTING_MS_ORDERING;
   if (type === "multiple") return VOTING_MS_MULTIPLE;
   return VOTING_MS_SINGLE;
+}
+
+function createAnswerShuffle(question) {
+  if (!question) return null;
+  const baseAnswers = Array.isArray(question.answers) ? question.answers : [];
+  const n = baseAnswers.length;
+  const indices = [];
+  for (let i = 0; i < n; i++) indices.push(i);
+  // Fisher-Yates
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = indices[i];
+    indices[i] = indices[j];
+    indices[j] = tmp;
+  }
+
+  const displayAnswers = [];
+  const letterToOriginal = {};
+  const originalToLetter = {};
+  for (let i = 0; i < indices.length; i++) {
+    const idx = indices[i];
+    const a = baseAnswers[idx] || {};
+    const origId = String(a.id || "").toUpperCase();
+    const letter = answerLabels[i] || String(i + 1);
+    letterToOriginal[letter] = origId;
+    originalToLetter[origId] = letter;
+    displayAnswers.push({ id: letter, text: String(a.text || "") });
+  }
+
+  return { letterToOriginal, originalToLetter, displayAnswers, order: displayAnswers.map((x) => x.id) };
+}
+
+function ensureShuffleForQuestion(question) {
+  if (!question || !question.id) return null;
+  session.questionShuffles = session.questionShuffles || {};
+  if (!session.questionShuffles[question.id]) {
+    session.questionShuffles[question.id] = createAnswerShuffle(question);
+  }
+  return session.questionShuffles[question.id];
 }
 
 function isGamepadClientId(id) {
@@ -403,25 +444,35 @@ function publishPhaseToAllGamepads(payload) {
 
 function questionPublicView(question) {
   if (!question) return null;
-  return {
+  const view = {
     id: question.id,
     text: question.text,
     description: String(question.description || ""),
     answerType: normalizeAnswerType(question.answerType),
     points: Number(question.points || 1),
     imageDataUrl: question.imageDataUrl || null,
-    answers: (Array.isArray(question.answers) ? question.answers : []).map((a) => ({
-      id: String(a.id || ""),
-      text: String(a.text || ""),
-    })),
     ordering: normalizeSelection(question.ordering || []),
   };
+
+  const shuffle = session.questionShuffles && session.questionShuffles[question.id] ? session.questionShuffles[question.id] : null;
+  if (shuffle && Array.isArray(shuffle.displayAnswers) && shuffle.displayAnswers.length > 0) {
+    view.answers = shuffle.displayAnswers.map((a) => ({ id: String(a.id || ""), text: String(a.text || "") }));
+  } else {
+    view.answers = (Array.isArray(question.answers) ? question.answers : []).map((a) => ({ id: String(a.id || ""), text: String(a.text || "") }));
+  }
+
+  return view;
 }
 
 function questionRevealView(question) {
   const view = questionPublicView(question);
   if (!view) return null;
-  const correctSelection = getQuestionCorrectSelection(question);
+  const correctSelectionOriginal = getQuestionCorrectSelection(question);
+  const shuffle = session.questionShuffles && session.questionShuffles[question.id] ? session.questionShuffles[question.id] : null;
+  let correctSelection = correctSelectionOriginal;
+  if (shuffle && shuffle.originalToLetter) {
+    correctSelection = (Array.isArray(correctSelectionOriginal) ? correctSelectionOriginal : []).map((id) => shuffle.originalToLetter[String(id || "").toUpperCase()] || String(id || "").toUpperCase());
+  }
   return {
     ...view,
     correctSelection,
@@ -511,6 +562,7 @@ function applySnapshotData(data) {
   session.collectingEndsAt = Number.isFinite(s.collectingEndsAt) ? s.collectingEndsAt : null;
   session.currentRound = s.currentRound && typeof s.currentRound === "object" ? s.currentRound : null;
   session.questionHistory = Array.isArray(s.questionHistory) ? s.questionHistory : [];
+  session.questionShuffles = s.questionShuffles && typeof s.questionShuffles === "object" ? s.questionShuffles : {};
 
   gamepads.clear();
   for (const g of Array.isArray(data.gamepads) ? data.gamepads : []) {
@@ -744,6 +796,9 @@ function enterQuestionStage() {
   session.currentRound = null;
 
   const question = getCurrentQuestion();
+  // Ensure we have a stable shuffle mapping for this question so clients
+  // (gamepads/quiz display/admin) see answers in the same randomized order.
+  try { ensureShuffleForQuestion(question); } catch (e) {}
   publishPhaseToAllGamepads({
     type: "phase",
     phase: "question",
@@ -760,6 +815,7 @@ function beginVotingPhase() {
 
   const now = Date.now();
   const question = getCurrentQuestion();
+  try { ensureShuffleForQuestion(question); } catch (e) {}
   const questionId = question && question.id ? question.id : null;
   const answerType = question ? normalizeAnswerType(question.answerType) : "single";
   const votingMs = votingDurationMsForAnswerType(answerType);
@@ -847,6 +903,7 @@ function finalizeRound() {
   clearTimers();
 
   const question = getCurrentQuestion();
+  const shuffle = session.questionShuffles && question && session.questionShuffles[question.id] ? session.questionShuffles[question.id] : null;
   if (!question) {
     setStage("question");
     return;
@@ -881,7 +938,15 @@ function finalizeRound() {
     const selected = normalizeSelection((round.selections || {})[id] || []);
     const answered = selected.length > 0;
 
-    const evalResult = evaluateAnswer(question, selected);
+    // Map displayed letters back to original answer IDs for evaluation
+    let selectedForEval = selected;
+    try {
+      if (shuffle && shuffle.letterToOriginal) {
+        selectedForEval = (Array.isArray(selected) ? selected : []).map((l) => shuffle.letterToOriginal[String(l || "").toUpperCase()] || String(l || "").toUpperCase());
+      }
+    } catch (e) {}
+
+    const evalResult = evaluateAnswer(question, selectedForEval);
     const pointsAwarded = evalResult.correct ? Number(question.points || 1) : 0;
 
     if (evalResult.correct) correctCount += 1;
@@ -892,6 +957,7 @@ function finalizeRound() {
       gp.points = Number(gp.points || 0) + pointsAwarded;
       gp.voted = answered;
       gp.submitted = Boolean((round.submitted || {})[id]);
+      // Keep lastSelection as displayed letters for admin/UI clarity
       gp.lastSelection = selected;
       // compute response percentage from client-provided timings, if any
       // NOTE: for tie-breaks we only record timing percentages from CORRECT answers.
@@ -938,12 +1004,18 @@ function finalizeRound() {
     }, { retain: true });
   }
 
+  // For summary, present correctSelection using displayed letters (if shuffled)
+  const correctSelectionOriginal = getQuestionCorrectSelection(question);
+  const correctSelectionDisplay = (shuffle && shuffle.originalToLetter)
+    ? (Array.isArray(correctSelectionOriginal) ? correctSelectionOriginal : []).map((id) => shuffle.originalToLetter[String(id || "").toUpperCase()] || String(id || "").toUpperCase())
+    : correctSelectionOriginal;
+
   const summary = {
     questionNumber: session.questionIndex + 1,
     questionId: question.id,
     questionText: question.text,
     answerType: normalizeAnswerType(question.answerType),
-    correctSelection: getQuestionCorrectSelection(question),
+    correctSelection: correctSelectionDisplay,
     correctCount,
     incorrectCount,
     timeoutCount,

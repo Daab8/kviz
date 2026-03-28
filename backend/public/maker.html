@@ -248,7 +248,7 @@
 
     .answer-row {
       display: grid;
-      grid-template-columns: auto 1fr auto;
+      grid-template-columns: 1fr auto;
       gap: 0.5rem;
       align-items: center;
       background: #f8fafc;
@@ -1189,7 +1189,7 @@
       }
 
       .answer-row {
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-columns: 1fr auto;
         align-items: center;
         row-gap: 0;
       }
@@ -1201,6 +1201,7 @@
       }
 
       .answer-row input[type="text"] {
+        width: 100%;
         min-width: 0;
       }
 
@@ -1358,13 +1359,8 @@
         <div class="field">
           <div class="label-row">
             <label>Odpovede</label>
-            <label><input id="shuffleAnswers" type="checkbox" checked> Zamiešať odpovede</label>
           </div>
           <div class="answer-grid" id="answerGrid"></div>
-          <div id="orderingField" class="ordering-field hidden">
-            <label>Správna postupnosť odpovedí</label>
-            <div id="orderingGrid" class="ordering-grid"></div>
-          </div>
         </div>
 
         <div class="inline-grid equal">
@@ -1538,9 +1534,6 @@
       tabManage: document.getElementById("tab-manage"),
       tabQuizzes: document.getElementById("tab-quizzes"),
       answerGrid: document.getElementById("answerGrid"),
-      orderingField: document.getElementById("orderingField"),
-      orderingGrid: document.getElementById("orderingGrid"),
-      shuffleAnswers: document.getElementById("shuffleAnswers"),
       questionForm: document.getElementById("questionForm"),
       questionText: document.getElementById("questionText"),
       questionDescription: document.getElementById("questionDescription"),
@@ -2321,30 +2314,25 @@
       const mode = getSelectedMode();
       const inputType = mode === "single" ? "radio" : "checkbox";
       const group = mode === "single" ? "name=\"correct-single\"" : "";
-
-      const rows = answerLabels.map((letter, idx) => {
+      const rows = answerLabels.map((_, idx) => {
         const controlHtml = mode === "ordering"
           ? `<span aria-hidden="true"></span>`
-          : `<input type="${inputType}" ${group} id="answerCorrect-${idx}" aria-label="Správna odpoveď ${letter}">`;
+          : `<input type="${inputType}" ${group} id="answerCorrect-${idx}" aria-label="Správna odpoveď ${idx + 1}">`;
         return `
           <div class="answer-row">
-            <span class="badge">${letter}</span>
-            <input type="text" id="answerText-${idx}" placeholder="Text odpovede ${letter}" maxlength="50" required>
+            <input type="text" id="answerText-${idx}" placeholder="Text odpovede ${idx + 1}" maxlength="50" required>
             ${controlHtml}
           </div>
         `;
       }).join("");
 
       el.answerGrid.innerHTML = rows;
-      renderOrderingInputs();
       updateSaveButtonState();
     }
 
     function getOrderingFromInputs() {
-      return answerLabels
-        .map((_, idx) => document.getElementById(`ordering-${idx}`))
-        .filter(Boolean)
-        .map((select) => select.value);
+      // Ordering inputs removed from UI — assume entered answer order is the correct order
+      return [...answerLabels];
     }
 
     function hasExactOrdering(ordering) {
@@ -2394,35 +2382,7 @@
     }
 
     function renderOrderingInputs() {
-      const mode = getSelectedMode();
-      if (mode !== "ordering") {
-        el.orderingField.classList.add("hidden");
-        el.orderingGrid.innerHTML = "";
-        return;
-      }
-
-      el.orderingField.classList.remove("hidden");
-      const current = getOrderingFromInputs();
-      const sequence = current.length === answerLabels.length ? current : [...answerLabels];
-
-      el.orderingGrid.innerHTML = answerLabels.map((_, idx) => {
-        const options = answerLabels
-          .map((letter) => `<option value="${letter}">${letter}</option>`)
-          .join("");
-        return `
-          <div class="ordering-item">
-            <label for="ordering-${idx}">Pozícia ${idx + 1}</label>
-            <select id="ordering-${idx}">${options}</select>
-          </div>
-        `;
-      }).join("");
-
-      sequence.forEach((letter, idx) => {
-        const select = document.getElementById(`ordering-${idx}`);
-        if (select) {
-          select.value = letter;
-        }
-      });
+      // Ordering UI removed — correct order is the entry order; nothing to render
     }
 
     function escapeHtml(value) {
@@ -2518,11 +2478,9 @@
 
       const mode = getSelectedMode();
       const correctCount = answers.filter((a) => a.correct).length;
-      const ordering = getOrderingFromInputs();
-      const validOrdering = hasExactOrdering(ordering);
-
+      // For ordering mode we assume the admin entered answers in the correct order
       if (mode === "ordering") {
-        return validOrdering;
+        return true;
       }
 
       if (mode === "single" && correctCount !== 1) {
@@ -2578,9 +2536,7 @@
       }
 
       if (mode === "ordering") {
-        if (!hasExactOrdering(ordering)) {
-          return "Pri type Zoradenie nastavte kompletné poradie A/B/C/D bez opakovania.";
-        }
+        // Ordering is implicit (answers are entered in the correct order)
         return null;
       }
 
@@ -2640,9 +2596,6 @@
       if (el.saveQuestionBtnMobile) el.saveQuestionBtnMobile.textContent = "Uložiť otázku";
       el.newCategory.value = "";
       el.categorySelect.value = MIX_CATEGORY_ID;
-      el.shuffleAnswers.checked = true;
-      el.orderingField.classList.add("hidden");
-      el.orderingGrid.innerHTML = "";
       updateCategorySelectionLockState();
       updateSaveButtonState();
     }
@@ -2659,7 +2612,6 @@
       el.categorySelect.value = q.categoryId;
       el.newCategory.value = "";
       updateCategorySelectionLockState();
-      el.shuffleAnswers.checked = true;
       const qType = ["single", "multiple", "ordering"].includes(q.answerType)
         ? q.answerType
         : (q.allowMultiple ? "multiple" : "single");
@@ -2673,17 +2625,7 @@
           correctEl.checked = Boolean(answer && answer.correct);
         }
       });
-      if (qType === "ordering") {
-        const ordering = Array.isArray(q.ordering) && q.ordering.length === answerLabels.length
-          ? q.ordering
-          : [...answerLabels];
-        ordering.forEach((letter, idx) => {
-          const select = document.getElementById(`ordering-${idx}`);
-          if (select) {
-            select.value = letter;
-          }
-        });
-      }
+      // For ordering type we assume answers are already in the correct order
       setImagePreview(q.imageDataUrl || null);
       el.saveQuestionBtn.textContent = "Uložiť zmeny otázky";
       if (el.saveQuestionBtnMobile) el.saveQuestionBtnMobile.textContent = "Uložiť zmeny otázky";
@@ -2777,11 +2719,17 @@
 
         const answersHtml = q.answers.map((a) => {
           const isCorrect = qType !== "ordering" && a.correct;
-          return `<li class="${isCorrect ? "correct" : ""}">${escapeHtml(a.id)}: ${escapeHtml(a.text)}${isCorrect ? " (správna)" : ""}</li>`;
+          return `<li class="${isCorrect ? "correct" : ""}">${escapeHtml(a.text)}${isCorrect ? " (správna)" : ""}</li>`;
         }).join("");
 
         const orderingHtml = qType === "ordering"
-          ? `<div class="muted"><strong>Správne poradie:</strong> ${escapeHtml((q.ordering || []).join(" -> "))}</div>`
+          ? (() => {
+              const texts = (q.ordering || []).map((letter) => {
+                const ans = (q.answers || []).find((x) => String(x.id || "").toUpperCase() === String(letter || "").toUpperCase());
+                return ans ? ans.text : letter;
+              });
+              return `<div class="muted"><strong>Správne poradie:</strong> ${escapeHtml(texts.join(" -> "))}</div>`;
+            })()
           : "";
 
         const descriptionHtml = q.description
@@ -2810,7 +2758,6 @@
                 </div>
                 <div class="question-actions">
                   <button type="button" class="btn-secondary" data-action="edit-question" data-id="${q.id}">Upraviť</button>
-                  <button type="button" class="btn-secondary" data-action="toggle-shuffle" data-id="${q.id}">Zamiešať</button>
                   <button type="button" class="btn-danger" data-action="delete-question" data-id="${q.id}">Zmazať</button>
                 </div>
                 <div class="question-image-wrap">${imageHtml}</div>
@@ -3041,7 +2988,7 @@
         payload.answers,
         payload.answerType,
         payload.ordering,
-        el.shuffleAnswers.checked
+        false
       );
       payload.answers = arrangedPayload.answers;
       payload.ordering = arrangedPayload.ordering;
@@ -3193,27 +3140,7 @@
           openImageModal(actionEl.dataset.src);
         }
 
-        if (action === "toggle-shuffle") {
-          state.questions = state.questions.map((q) => {
-            if (q.id !== id) {
-              return q;
-            }
-            const arranged = applyAnswerArrangement(
-              q.answers,
-              q.answerType,
-              Array.isArray(q.ordering) ? q.ordering : [],
-              true
-            );
-            return {
-              ...q,
-              answers: arranged.answers,
-              ordering: arranged.ordering,
-              lastModified: new Date().toISOString()
-            };
-          });
-          markUnsavedChanges();
-          persistState();
-        }
+        
 
         if (action === "delete-question") {
           deleteQuestion(id);

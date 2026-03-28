@@ -1,266 +1,80 @@
-AI Quiz JSON Generation Guide
+AI Quiz JSON Generation Guide (concise)
 
 Purpose
-This file instructs an AI how to generate a quiz in the JSON format expected by this quiz system. It lists all supported question types, fields, validation rules, good practices, and sample JSON. Use this as the canonical reference when generating quizzes.
+- Short reference for generating quiz JSON that the app accepts. Follow schema, validation rules, and generation constraints below.
 
-Note: The final generated quiz file should be written in Slovak (slovensky). When producing questions, take your time: verify facts, follow the validation rules in this guide, and ensure answer texts do not leak solutions. Prioritize accuracy over speed.
+Root structure
+- The top-level JSON must include: `version`, `categories` (array), `questions` (array), `quizzes` (array).
+- Minimal wrapper example:
+  {
+    "version":"1.0.0",
+    "categories":[],
+    "questions":[],
+    "quizzes":[]
+  }
 
-High-level structure (root JSON)
-- The backend accepts a payload containing arrays: `questions`, `quizzes`, and `categories`. The minimal payload must include these three arrays (they may be empty if not used). Example wrapper:
+Question object (summary)
+- `id` (string, required): unique id, stable.
+- `text` (string, required): question text.
+- `answerType` ("single"|"multiple"|"ordering", required).
+- `points` (integer, required): set to `1` for every question.
+- `answers` (array, required for `single` and `multiple`, recommended for `ordering`): exactly 4 items labeled `A`,`B`,`C`,`D`.
+  - answer object: `id` (A..D), `text` (string), optional `correct` (boolean), optional `explanation`, optional `imageDataUrl` or `imageUrl`.
+- `ordering` (array of A..D) required for `answerType: "ordering"` (correct sequence).
+- `tags` (array), `description` (explanation shown on reveal), `meta` (optional).
+- `shuffleAnswers` (boolean, optional) — presentation hint; defaults to `true`.
 
-{
-  "version": "1.0.0",
-  "categories": [ /* optional category objects */ ],
-  "questions": [ /* question objects (see below) */ ],
-  "quizzes": [ /* quiz definitions: which questions belong to which quiz */ ]
-}
+Quizzes and categories (summary)
+- `quizzes`: objects with `id`, `name`, and optional `selectedQuestionIds`, `selectedCategoryIds`, `orderedQuestionIds`.
+- `categories`: `id`, `name`, `description`.
 
-Questions array: question object schema (complete)
-- `id` (string, required): unique identifier for the question (example: "q-0001" or "Q1"). Keep IDs stable and unique across the file.
-- `text` (string, required): the question text.
-- `description` (string, optional): additional explanatory text to show when revealing answers (longer explanation).
-- `answerType` (string, required): one of `single`, `multiple`, or `ordering`.
-  - `single`: exactly one correct answer.
-  - `multiple`: multiple answers may be correct (scoring policy: exact-match by default).
-  - `ordering`: answers should be ordered; `ordering` field below defines the correct order.
-- `points` (integer): All questions must be worth 1 point. Set `points` to `1` for every question.
-- `answers` (array of objects, required for `single` and `multiple`, recommended for `ordering`): each answer object:
-    - `id` (string, required): short label for answer, typically single uppercase letter `A`, `B`, `C`, ... (the system normalizes to uppercase). Use unique IDs per question.
-    - `text` (string, required): answer text.
-    - `explanation` (string, optional): explanation for this answer (shown on reveal if desired).
-    - `imageDataUrl` or `imageUrl` (optional): if answer uses an image; prefer `imageDataUrl` for embedded images (data URL), `imageUrl` for external URLs.
-    - `correct` (boolean, optional in source): optional author annotation for correct answers. For `single` set exactly one `correct: true`; for `multiple` set all correct items; for `ordering` omit or set on items (system reads `ordering` instead).
-- `ordering` (array of answer ids, required for `ordering` questions): an ordered list of answer `id`s representing correct order.
-- `imageDataUrl` or `imageUrl` (optional): question-level image.
-- `tags` (array of strings, optional): topic tags.
-- `shuffleAnswers` (boolean, optional): whether to shuffle answers for presentation. Defaults to true.
-- `meta` (object, optional): any other metadata (author, createdAt, difficultyReason, source, license).
+Examples (minimal)
+- Single-answer (one `correct`):
+  {"id":"q-001","text":"Which is red?","answerType":"single","points":1,
+   "answers":[{"id":"A","text":"Apple"},{"id":"B","text":"Banana"},{"id":"C","text":"Cherry","correct":true},{"id":"D","text":"Grape"}],"description":"Cherry is red."}
+- Multiple-answer (2..4 correct):
+  {"id":"q-010","text":"Select primes","answerType":"multiple","points":1,
+   "answers":[{"id":"A","text":"2","correct":true},{"id":"B","text":"3","correct":true},{"id":"C","text":"4"},{"id":"D","text":"5","correct":true}]}
+- Ordering (include `ordering`):
+  {"id":"q-020","text":"Order events","answerType":"ordering","points":1,
+   "answers":[{"id":"A","text":"Event A"},{"id":"B","text":"Event B"},{"id":"C","text":"Event C"},{"id":"D","text":"Event D"}],"ordering":["A","B","C","D"]}
 
-Quizzes array: how to build a quiz (object schema)
-- `id` (string): quiz id
-- `name` (string): human-friendly quiz name
-- `selectedQuestionIds` (array): optionally list of question ids to include
-- `selectedCategoryIds` (array): optional category filter
-- `orderedQuestionIds` (array): optional custom ordering
+Key generation rules (compact)
+- Mix topics: interleave categories so players don't see many same-topic questions in a row.
+- IDs & labels: use single uppercase letters `A`..`D` for answer ids; unique per question.
+- Avoid leakage: do not include explicit years, ordinals, or unique tokens in answer texts that reveal the solution — move such metadata to `description`.
+- Plausible distractors: keep distractors same category/length/register as the correct answer.
+- Counts & formatting: exactly 4 answers per question; `single` → exactly 1 `correct:true`; `multiple` → 2..4 correct; `ordering` → use `ordering` array of all A-D.
+- Points & difficulty: always `points: 1`; aim for at least high-school level difficulty.
 
-Categories array (optional)
-- `id`, `name`, `description`
+Images (short)
+- Prefer embedding as `imageDataUrl` (data:<mime>;base64,...) for reliable display. Maker UI limits uploads to ~512 KB.
+- If using `imageUrl`, the app will not auto-fetch it — convert to `imageDataUrl` before import if you need immediate display.
+- Quick conversion: download binary → detect MIME → base64 encode → build `data:<mime>;base64,<payload>`.
 
-Examples (questions)
-1) Single-answer question
-{
-  "id": "q-001",
-  "text": "Which planet is known as the Red Planet?",
-  "answerType": "single",
-  "points": 1,
-  "answers": [
-    {"id":"A","text":"Venus"},
-    {"id":"B","text":"Mars","correct":true},
-    {"id":"C","text":"Jupiter"},
-    {"id":"D","text":"Saturn"}
-  ],
-  "description": "Mars is called the Red Planet because of iron oxide on its surface."
-}
+Ordering-specific
+- `ordering` must list all four IDs once (e.g., `["A","B","C","D"]`).
+- Set `shuffleAnswers: true` in the question source so displayed order can be randomized at runtime.
 
-2) Multiple-answer question
-{
-  "id":"q-010",
-  "text":"Select all prime numbers",
-  "answerType":"multiple",
-  "points":1,
-  "answers":[
-    {"id":"A","text":"2","correct":true},
-    {"id":"B","text":"3","correct":true},
-    {"id":"C","text":"4"},
-    {"id":"D","text":"5","correct":true}
-  ],
-  "description":"2,3,5 are prime; 4 is composite. Use exact-match scoring unless a custom scoring policy is applied."
-}
+Consistency checks (apply before export)
+- Unique question ids; exactly 4 answers (A..D) each; points == 1.
+- `single` has one correct; `multiple` has 2..4 correct; `ordering` has ordering array that contains A-D once.
+- No duplicate answer texts; no answers repeating the full question.
 
-3) Ordering question
-{
-  "id":"q-020",
-  "text":"Order these historical events from earliest to latest",
-  "answerType":"ordering",
-  "points":1,
-  "answers":[
-    {"id":"A","text":"Fall of Constantinople"},
-    {"id":"B","text":"Discovery of America"},
-    {"id":"C","text":"Start of World War I"}
-  ],
-  "ordering":["A","B","C"],
-  "description":"Const. fell 1453, Columbus 1492, WWI started 1914." 
-}
+Prompt template (short)
+- "Generate N Slovak questions for TOPIC. Output JSON with `categories`, `questions`, `quizzes` following the above schema. Ensure 4 answers per question, correct flags, `ordering` for ordering-type, and `points:1`. Avoid hints or dates in answers."
 
-Important generation rules for AI (validation + anti-hinting)
-1) IDs and labels
-- Use short uppercase IDs `A..Z` that are unique per question.
-- `ordering` arrays must reference those exact IDs.
+Checklist (quick)
+- IDs unique; answers A..D; points=1; counts/answerType rules met; no hint leakage; parseable JSON.
 
-2) Avoid answer leakage/hints
-- Do not include data in answer choices that directly reveal the order or correct answer. Examples to avoid:
-  - For ordering tasks, do NOT include chronological years or ordinal numbers in answer texts unless the year is part of the question and required. If the task asks to order events, answers should not include their years in parentheses (e.g., avoid "Battle of X (1944)") because that gives the answer away. Instead include neutral wording and put years in the `description` if needed.
-  - Do not repeat unique keywords of the question in a single answer that would reveal the correct match.
-  - Avoid answer option phrasing that includes definitive words used in question text that would point to a single choice.
-- AI must detect and rewrite answers that would leak the solution. If a candidate answer contains an explicit timestamp, number, or clearly unique identifier that reveals order/correctness, modify the answer alternatives to remove the explicit hint while preserving correctness.
+Slovak-language requirements
+- All `text`, `description`, and `answers` must be in Slovak for imports intended for this app. Keep phrasing natural and idiomatic.
 
-3) Plausible distractors
-- For single/multiple choice, produce plausible distractors: same category / similar length / similar phrasing. Avoid obviously wrong items (unless intentionally easy). Keep distractors grammatically consistent with the question.
+Distributed generation (note)
+- If splitting work across workers, ensure global ID uniqueness (use prefixes), then merge and run the full validation checklist.
 
-4) Answer counts and formatting
-- Every question MUST have exactly 4 answer options (`A`,`B`,`C`,`D`). Do not generate fewer or more.
-- For `single` questions exactly one of the four answers must be correct.
-- For `multiple` questions there must be between 2 and 4 answers marked as correct (i.e., exactly 2, 3, or 4 correct options). Design distractors accordingly.
-- Keep answer text concise (one sentence or phrase). Use sentence capitalization.
-- Keep answer text concise (one sentence or phrase). Use sentence capitalization.
+Implementation notes for integrators
+- Maker UI normalizes/uppercases ids and strips any `shuffleAnswers` flag on import; the app expects answers in A..D format.
+- Images embedded as `imageDataUrl` are safest; external `imageUrl` may not display without conversion.
 
-5) Points/difficulty
-- All questions must have `points` set to `1` (one point each). Do not vary point values — every question contributes one point to the quiz total. The AI should still ensure questions meet the difficulty floor; use `meta.difficultyReason` to document the intended difficulty if desired.
-
-- Difficulty floor: Questions MUST be at least high-school level (secondary school). Avoid trivial or primary-school-level questions; prefer items that require understanding, reasoning, or multi-step recall. If helpful, document the rationale for difficulty in `meta.difficultyReason`, but keep `points` equal to `1` for all items.
-
-
--6) Explanations and insights
-- Provide a `description` for each question with a clear explanation of the correct answer and optionally references or short source notes.
-- Optionally add a short `insight` / `interestingFact` field for the quiz admin to show as a curiosity.
--
- -7) Images — how app actually expects them
- - app stores and displays images directly on question objects using the `imageDataUrl` field (string). This must be a valid data URL, for example `data:image/png;base64,<base64-data>`. When saved from the maker UI it also stores an optional `imageName` with the original filename.
- - Important: the current app implementation DOES NOT automatically download images from external URLs. If your JSON only contains `imageUrl`, app will not convert or display it. For portability and immediate display in app prefer embedding the image as `imageDataUrl`.
- - Recommended fields (for app compatibility):
-   - `imageDataUrl` (string, preferred) — data URL with base64 payload, e.g. `data:image/jpeg;base64,/9j/4AAQ...`
-   - `imageName` (string, optional) — original filename (e.g. `image.jpg`). app saves this as metadata.
-   - Optional meta fields for other clients: `imageAlt`, `imageWidth`, `imageHeight`, `meta.imageSource`, `meta.imageAttribution`. Note: the current app version does not use these optional fields for rendering, but including them is useful for other consumers.
- - Size and format limits:
-   - The maker UI limits uploaded file size to 512 KB (MAX_IMAGE_SIZE_BYTES = 512*1024). For compatibility keep embedded `imageDataUrl` under ~512 KB.
-   - Common supported MIME types: `image/png`, `image/jpeg`, `image/webp`, etc. Encoding must be base64.
- - How to embed an image from the internet (conversion steps the generator/application should follow):
-   1. Download the binary image content (HTTP GET).
-   2. Determine the MIME type from the `Content-Type` header or file extension (e.g., `image/jpeg`).
-   3. Encode the binary content to base64.
-   4. Build the data URL: `data:<mime>;base64,<base64-payload>`.
-   5. Add the `imageDataUrl` field with this data URL and optionally `imageName` (e.g., `quiz-image.jpg`).
- - As an alternative (if embedding is not possible): include `imageUrl` plus `meta.imageSource` and attribution, but note app will not fetch `imageUrl` automatically — a client or server must ensure availability or convert to a data URL at import time.
- - Example (short sample question with an embedded image):
- {
-   "id":"q-img-001",
-   "text":"What do you see in this image?",
-   "answerType":"single",
-   "points":1,
-   "answers":[
-     {"id":"A","text":"Option 1"},
-     {"id":"B","text":"Option 2","correct":true},
-     {"id":"C","text":"Option 3"},
-     {"id":"D","text":"Option 4"}
-   ],
-   "imageDataUrl":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...",
-   "imageName":"example.jpg",
-   "description":"Short explanation of the correct answer."
- }
- - Summary: for reliable display in app embed images as `imageDataUrl` (data URL, base64), keep them under ~512 KB, and optionally include `imageName`. If you only use external `imageUrl`, app will not show them without extra server/client conversion.
-
--8) Ordering-specific
-
--8) Ordering-specific
-- For `ordering` questions, the `answers` array MUST contain exactly 4 entries (`A`..`D`) and the `ordering` array MUST list all four IDs in the correct order (e.g., `["A","B","C","D"]`).
-- Do not reveal the order in answer texts; prefer neutral wording (e.g., "Bitka pri X" without years). If dates are necessary, move them into `description`/`popis`.
-- Set `shuffleAnswers: true` for ordering questions and randomize the presented order so that the displayed option sequence varies between sessions — do not rely on `A,B,C,D` being the presentation order.
-
-- In the question-level `description` (Slovak `popis`) include explanation and any interesting facts or context.
-
-9) Consistency checks for AI before finalizing JSON (must be applied automatically)
-- Ensure every question has a unique `id`.
-- Ensure every question has exactly four answers with IDs `A`,`B`,`C`,`D`.
-- Ensure each question with `answerType: single` has exactly one `correct: true`.
-  - For `multiple`, ensure there are between 2 and 4 answers marked as `correct: true` (2..4 correct answers allowed) and that this is intentional.
-- For `ordering`, ensure `ordering` references all four provided answer IDs exactly once.
-- Ensure answer `id`s are the single uppercase letters `A`,`B`,`C`,`D`.
-- Reject or rewrite answers where answer text repeats the full question text or trivially hints the solution.
-- Check for duplicate answer texts and remove/adjust duplicates.
-  - Verify every question has `points` set to `1` (one point per question).
-
-10) Content and safety
-- Ensure no copyrighted full passages are reproduced verbatim unless licensed. Prefer short paraphrases for extracts.
-- Avoid sensitive personal data, explicit, or disallowed content.
-
-AI generation prompt template (how to instruct the AI)
-  - "Generate N questions for a quiz about TOPIC. Output a JSON object with arrays `questions`, `quizzes`, `categories` as described. For each question include: `id`, `text`, `answerType` (single|multiple|ordering), `answers` (with `id` letters and `text`), `points` (1), and `description` (explanation). Ensure IDs are unique. Follow these validation rules: (list checks above). Avoid answers that reveal the correct answer (e.g., do not include years in ordering answers). Include 2 sample `quizzes` mapping these questions. Provide an example `categories` entry if needed."
-
-Complete sample JSON (small quiz)
-{
-  "version":"1",
-  "categories":[{"id":"c1","name":"General Knowledge"}],
-  "questions":[ /* include q-001, q-010, q-020 examples from above */ ],
-  "quizzes":[{"id":"quiz-1","name":"Sample Quiz","selectedQuestionIds":["q-001","q-010","q-020"]}]
-}
-
-Notes for implementers / integrators
-- If you embed images as `imageDataUrl` they become large; ensure upload/transfer supports large JSON.
-
-Image embedding guidelines
-- **Allowed formats:** Use `imageDataUrl` for embedded images (preferred) or `imageUrl` for external links. An `imageDataUrl` must be a valid data URL, for example `data:image/png;base64,<base64-data>` or `data:image/jpeg;base64,<base64-data>`.
-- **Size limit:** Keep each `imageDataUrl` under 512 KB (base64-encoded payload). Large images may be rejected by the backend or cause performance issues in the browser.
-- **Purpose / content policy:** Images should be used as visual hints or illustrations only. Do not include critical answer information or the solution inside images (images must not contain the correct answer, chronological cues, or text that reveals ordering). Images that would reveal the solution should be avoided or the relevant textual content moved to the `description` field instead.
-- **Metadata:** Include optional `imageWidth`/`imageHeight` (pixels) when known to help clients reserve space and avoid layout shifts.
-- **Recommendations:** Prefer small, cropped images (icons, diagrams, or thumbnails). Compress and resize images before embedding. If portability is needed and images are large, host them externally and use `imageUrl` instead.
-
-- The backend will normalize IDs to uppercase; keep client-side references consistent.
-- If additional features are required (partial scoring, time-limits per question), include `meta` fields and document expected behavior.
-
--
---
-Checklist for the AI before returning JSON
-- [ ] Validate ID uniqueness
-- [ ] Validate answer IDs and ordering references
-- [ ] Validate points range
-- [ ] Validate no answer leaks solution (dates, ordinals, obvious labels)
-- [ ] Validate answers are plausible distractors
-- [ ] Provide `description` for each question explaining the correct answer
-- [ ] Provide at least one `quiz` object mapping the questions
-- [ ] Verify the generated output is valid JSON (parseable) before returning the file
-
-Rules (requirements for Slovak-language generation)
-
-- Language: All question text, descriptions, explanations and answer texts MUST be written in Slovak. If the source material is not in Slovak, automatically translate and adapt it so the wording is natural and grammatically correct in Slovak.
-- Number of answer options: Every question (including `ordering`) MUST contain exactly four answer options with IDs `A`, `B`, `C`, `D`. If the original content proposes a different number, add or remove plausible distractors to arrive at four options.
-- Ordering questions: For `ordering` type questions generate an `ordering` array containing the correct sequence (for example `["A","B","C","D"]`). The `answers` array must include all four IDs. Set `shuffleAnswers: true` and randomize the presented order so that the displayed sequence is not always `A,B,C,D`.
-- Description for ordering questions: In the question-level `description` include explanation and any interesting facts or context.
-- Fact-checking: Perform a basic fact-check using available sources before adding a question. Questions that require future knowledge or cannot be verified should be rejected or marked with `meta.reviewRequired: true`.
-- No answers in the question text: Ensure the question text does not contain or reveal the answer (for example avoid "Which year did X happen? 1999" or "The correct answer is B"). If such hints exist, rewrite or remove them so the question does not contain an answer clue.
-- Difficulty level: Ensure each generated question is at least high-school grade in difficulty. Do not generate overly simple or trivial questions; prefer ones that test comprehension, application, or multi-step reasoning. If a question cannot be reasonably adjusted to this level, mark it with `meta.reviewRequired: true`.
-- Consistent answer IDs: Always use the single-letter IDs `A`, `B`, `C`, `D` for answer options. The `ordering` array must reference these IDs exactly once each.
-- Duplicate checks and hint leakage: Detect duplicate or nearly identical answer texts and adjust them. Ensure no answer text directly repeats a unique token from the question that would reveal the correct option.
-
-Updated checklist (additions)
-
-- [ ] All texts are written in Slovak.
-- [ ] Each question has exactly four answers (`A`..`D`).
-- [ ] `multiple` questions may have 2..4 correct answers.
-- [ ] `ordering` questions include an `ordering` field, `shuffleAnswers: true`.
-- [ ] No question refers to future events or contains the answer inside the question text.
-- [ ] Fact-checked or marked with `meta.reviewRequired` when verification is not possible.
-- [ ] Verify that the generated file is valid, parseable JSON.
-- [ ] Avoid trivial or overly simple questions; perform de-duplication to prevent repeated or very similar questions in the same file.
-
-Distributed generation (subagents)
-
-- When generating large quizzes, consider splitting the workload across multiple subagents or workers. Each subagent should be assigned a disjoint subset of questions (for example by index range, topic, or tag) and produce a partial JSON result containing at least a `questions` array and any `categories` or `meta` it produced.
-- Subagent requirements:
-  - Follow the same schema and validation rules as this guide.
-  - Validate its own output (IDs unique within its subset, 4 answers per question, `ordering` correctness, etc.).
-  - Optionally prefix IDs or use a namespace to avoid collisions (e.g., `q-SA1-0001`).
-
-- Coordinator/merging steps:
-  - Collect all partial JSON outputs and concatenate `questions` arrays.
-  - Merge `categories` and `quizzes`, reconciling duplicates and normalizing IDs.
-  - De-duplicate similar questions and verify global ID uniqueness. If prefixes were used, optionally normalize final IDs per system conventions.
-  - Run the full validation checklist on the assembled JSON before importing (ID uniqueness, 4 answers per question, points range, no leak/hinting, parseable JSON).
-
-- Implementation notes and trade-offs:
-  - Use prefixing or a central ID allocator to prevent collisions when subagents run in parallel.
-  - Keep subagent outputs small (only include the fields needed) to reduce transfer size.
-  - Benefits: parallelism, faster generation, and easier fault isolation. Risks: merging complexity and the need for a final global validation pass.
-
-End of guide
-
-Use this file for an AI to study the exact schema, validation rules, and generation constraints before producing quiz JSON for the system.
+End of concise guide
