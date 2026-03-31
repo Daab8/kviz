@@ -7,6 +7,41 @@ import os
 
 machine.freq(80000000)
 
+# Conditional REPL / UART disable for power saving.
+# Set to a GPIO number (active-low) to enable REPL when held; keep None to disable REPL by default.
+DEBUG_ENABLE_PIN = 8
+
+def _is_debug_pressed():
+    if DEBUG_ENABLE_PIN is None:
+        return False
+    try:
+        p = Pin(DEBUG_ENABLE_PIN, Pin.IN, Pin.PULL_UP)
+        return p.value() == 0
+    except Exception:
+        return False
+
+def _maybe_disable_repl():
+    # If debug pin is pressed, leave REPL enabled. Otherwise attempt to disable dupterm and deinit UART0.
+    if _is_debug_pressed():
+        return
+    try:
+        import uos # type: ignore
+        try:
+            uos.dupterm(None)
+        except Exception:
+            pass
+    except Exception:
+        pass
+    try:
+        # Some ports expose UART via machine.UART
+        uart0 = machine.UART(0)
+        try:
+            uart0.deinit()
+        except Exception:
+            pass
+    except Exception:
+        pass
+
 try:
     import ujson as json  # type: ignore
 except ImportError:
@@ -684,32 +719,7 @@ def perform_ota_update(url, expected_sha256=None):
 
     # Final install step
     os.rename(OTA_TEMP_FILE, OTA_TARGET_FILE)
-
-    # Optional verification: reopen and check sha256 if hashing available and expected provided
-    if expected_sha256 and (hashlib is not None and ubinascii is not None):
-        try:
-            with open(OTA_TARGET_FILE, "rb") as f:
-                h2 = hashlib.sha256()
-                while True:
-                    chunk = f.read(1024)
-                    if not chunk:
-                        break
-                    h2.update(chunk)
-            got2 = ubinascii.hexlify(h2.digest()).decode().lower()
-            want2 = str(expected_sha256).strip().lower()
-            if got2 and got2 != want2:
-                raise OSError("sha mismatch after install")
-        except Exception:
-            # If verification fails, attempt to restore backup
-            try:
-                os.remove(OTA_TARGET_FILE)
-            except Exception:
-                pass
-            try:
-                os.rename(OTA_BACKUP_FILE, OTA_TARGET_FILE)
-            except Exception:
-                pass
-            raise
+    # Post-install verification removed (streaming hash already validated earlier).
 
 
 def apply_button_input(button_label):
@@ -950,7 +960,12 @@ def show_disconnected_led():
 
 def show_disconnected_feedback():
     show_disconnected_led()
-    p = get_battery_percentage()
+    # While disconnected, show battery percentage on the display.
+    try:
+        p = get_battery_percentage()
+    except Exception:
+        p = None
+
     if p is None:
         display_clear()
     else:
@@ -958,6 +973,8 @@ def show_disconnected_feedback():
 
 
 def main():
+    # Disable REPL / UART early unless debug button is held at boot.
+    _maybe_disable_repl()
     maybe_enter_brownout_safety_sleep()
 
     tm_init()
