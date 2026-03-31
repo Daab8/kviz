@@ -5,6 +5,8 @@ import machine  # type: ignore
 from umqtt.simple import MQTTClient  # type: ignore
 import os
 
+machine.freq(80000000)
+
 try:
     import ujson as json  # type: ignore
 except ImportError:
