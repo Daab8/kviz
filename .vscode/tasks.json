@@ -8,7 +8,7 @@
       "args": [
         "-NoProfile",
         "-Command",
-        "Set-Location 'd:\\Workspace\\ESP32-C3\\project-name\\backend'; if (-not (Test-Path 'node_modules')) { npm install }; npm run start:broker"
+        "Set-Location '${workspaceFolder}\\backend'; if (-not (Test-Path 'node_modules')) { npm install }; npm run start:broker"
       ],
       "isBackground": true,
       "group": "build",
@@ -21,7 +21,7 @@
       "args": [
         "-NoProfile",
         "-Command",
-        "Set-Location 'd:\\Workspace\\ESP32-C3\\project-name\\backend'; if (-not (Test-Path 'node_modules')) { npm install }; npm start"
+        "Set-Location '${workspaceFolder}\\backend'; if (-not (Test-Path 'node_modules')) { npm install }; npm start"
       ],
       "isBackground": true,
       "group": "build",
@@ -34,7 +34,7 @@
       "args": [
         "-NoProfile",
         "-Command",
-        "$esp = Get-CimInstance Win32_SerialPort | Where-Object { $_.PNPDeviceID -match 'VID_303A&PID_1001' } | Sort-Object DeviceID | Select-Object -First 1; if (-not $esp) { Write-Error 'No ESP32-C3 serial port found (VID_303A&PID_1001). Connect the board and retry.'; exit 1 }; $port = $esp.DeviceID; Write-Host \"[esp] Using port $port\"; $old = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(.exe)?$' -and $_.CommandLine -match \"serial.tools.miniterm $port\" }; if ($old) { $old | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }; Start-Sleep -Milliseconds 300; & ampy --port $port put 'd:\\Workspace\\ESP32-C3\\project-name\\board\\main.py'; & python -m serial.tools.miniterm $port 115200; exit 0"
+        "$esp = Get-CimInstance Win32_SerialPort | Where-Object { $_.PNPDeviceID -match 'VID_303A&PID_1001' } | Sort-Object DeviceID | Select-Object -First 1; if (-not $esp) { Write-Error 'No ESP32-C3 serial port found (VID_303A&PID_1001). Connect the board and retry.'; exit 1 }; $port = $esp.DeviceID; Write-Host \"[esp] Using port $port\"; $old = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(.exe)?$' -and $_.CommandLine -match \"serial.tools.miniterm $port\" }; if ($old) { $old | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }; Start-Sleep -Milliseconds 300; & python -m mpremote connect $port fs cp '${workspaceFolder}\\board\\main.py' :main.py; & python -m mpremote connect $port repl"
       ],
       "group": {
         "kind": "test",
@@ -44,7 +44,7 @@
         "reveal": "always",
         "panel": "shared",
         "clear": true,
-        "close": true,
+        "close": false,
         "showReuseMessage": false
       },
       "runOptions": {
@@ -59,7 +59,7 @@
       "args": [
         "-NoProfile",
         "-Command",
-        "Set-Location 'd:\\Workspace\\ESP32-C3\\project-name\\backend'; if (-not (Test-Path 'node_modules')) { npm install }; npm run ota:push"
+        "Set-Location '${workspaceFolder}\\backend'; if (-not (Test-Path 'node_modules')) { npm install }; npm run ota:push"
       ],
       "group": {
         "kind": "build",

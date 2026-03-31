@@ -79,11 +79,36 @@ function readJsonFromApi(pathname) {
 }
 
 function mqttPublish(client, topic, payload) {
+  // If payload is a control fw-update object, encode it to the compact binary
+  // format used by the gamepads so they receive the same messages as the UI path.
   return new Promise((resolve, reject) => {
-    client.publish(topic, JSON.stringify(payload), { qos: 1, retain: false }, (err) => {
-      if (err) return reject(err);
-      resolve();
-    });
+    try {
+      let outPayload = null;
+      // Detect fw-update control payload and encode to binary: [FW_UPDATE, urlLen, urlBytes..., optional 32-byte sha]
+      if (payload && typeof payload === 'object' && String(payload.type || '') === 'fw-update') {
+        const url = String(payload.url || '');
+        const urlBuf = Buffer.from(url, 'utf8');
+        const parts = [Buffer.from([0x05, urlBuf.length & 0xff]), urlBuf];
+        if (payload.sha256 && typeof payload.sha256 === 'string' && payload.sha256.length === 64) {
+          try {
+            const raw = Buffer.from(payload.sha256, 'hex');
+            if (raw.length === 32) parts.push(raw);
+          } catch (e) {
+            // ignore sha parse errors
+          }
+        }
+        outPayload = Buffer.concat(parts);
+      } else {
+        outPayload = Buffer.from(JSON.stringify(payload));
+      }
+
+      client.publish(topic, outPayload, { qos: 1, retain: false }, (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
@@ -108,8 +133,6 @@ async function main() {
 
   if (connected.length === 0) {
     console.log("No connected gamepads found. OTA file prepared, no publish sent.");
-    console.log(`OTA URL: ${OTA_URL}`);
-    console.log(`SHA256 : ${sha256}`);
     return;
   }
 
@@ -134,11 +157,35 @@ async function main() {
     const parts = String(topic || "").split("/");
     if (parts.length < 3 || parts[0] !== "gamepad" || parts[2] !== "telemetry") return;
     const gamepadId = parts[1];
-    let msg;
+    let msg = null;
+    // First try JSON payloads (legacy/admin apps)
     try {
       msg = JSON.parse(payloadBuf.toString("utf8"));
     } catch (err) {
-      return;
+      // Fallback: attempt to decode binary telemetry-status (MSG 0x21)
+      try {
+        if (payloadBuf && payloadBuf.length >= 4) {
+          const t0 = payloadBuf.readUInt8(0);
+          // MSG.TELEMETRY_STATUS === 0x21
+          if (t0 === 0x21) {
+            const subtype = payloadBuf.readUInt8(1);
+            // subtype 1 === fw-update-status
+            if (subtype === 1) {
+              const statusCode = payloadBuf.readUInt8(2);
+              const len = payloadBuf.readUInt8(3) || 0;
+              let detail = "";
+              if (len > 0 && 4 + len <= payloadBuf.length) {
+                detail = payloadBuf.slice(4, 4 + len).toString('utf8');
+              }
+              const statusMap = {1: 'start', 2: 'ok', 3: 'error'};
+              const status = statusMap[statusCode] || 'unknown';
+              msg = { type: 'fw-update-status', status, detail };
+            }
+          }
+        }
+      } catch (e) {
+        msg = null;
+      }
     }
     if (!msg || msg.type !== "fw-update-status") return;
     ackById.set(gamepadId, {
@@ -169,10 +216,6 @@ async function main() {
     }
 
     console.log(`Published OTA command to ${connected.length} gamepad(s).`);
-    console.log(`Auto-detected OTA host: ${OTA_PUBLIC_HOST}`);
-    console.log(`OTA URL: ${OTA_URL}`);
-    console.log(`SHA256 : ${sha256}`);
-    console.log(`Waiting ${ACK_WAIT_MS} ms for fw-update-status acknowledgements...`);
 
     await wait(ACK_WAIT_MS);
 

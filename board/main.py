@@ -4,6 +4,10 @@ import time
 import machine  # type: ignore
 from umqtt.simple import MQTTClient  # type: ignore
 import os
+try:
+    import ustruct as struct # type: ignore
+except Exception:
+    import struct
 
 machine.freq(80000000)
 
@@ -42,10 +46,7 @@ def _maybe_disable_repl():
     except Exception:
         pass
 
-try:
-    import ujson as json  # type: ignore
-except ImportError:
-    import json
+# JSON library not required by this module; avoid importing to save memory.
 
 try:
     import urequests as requests  # type: ignore
@@ -159,7 +160,7 @@ except Exception:
     battery_adc = None
 
 # Sampling and mapping tweaks
-BATTERY_SAMPLES = 10
+BATTERY_SAMPLES = 5
 BATTERY_SAMPLE_DELAY_MS = 3
 # Exponential moving average alpha for displayed percentage (0..1)
 BATTERY_EMA_ALPHA = 0.35
@@ -264,34 +265,6 @@ def tm_write_all(pattern):
 def display_clear():
     tm_write_all(0x00)
 
-def gamepad_id_suffix(gamepad_id):
-    if not gamepad_id:
-        return "----"
-    token = str(gamepad_id)
-    if "-" in token:
-        token = token.split("-")[-1]
-    token = token.upper()
-    token = token[-4:]
-    while len(token) < 4:
-        token = "-" + token
-    return token
-
-
-def display_identify_id(gamepad_id):
-    token = gamepad_id_suffix(gamepad_id)
-    out = [0x00, 0x00, 0x00, 0x00]
-    for idx, ch in enumerate(token[:4]):
-        if ch in DIGITS:
-            out[idx] = DIGITS[ch]
-        elif ch in LETTER_PATTERN:
-            out[idx] = LETTER_PATTERN[ch]
-        elif ch == "-":
-            out[idx] = PATTERN_DASH
-        else:
-            out[idx] = 0x00
-
-    for pos in range(4):
-        tm_write_at(pos, out[pos])
 
 
 def display_letters_fixed(letters):
@@ -477,7 +450,7 @@ def _wifi_attempt_failed(status_code):
 
 def connect_wifi(sta_if, on_wait=None):
     sta_if.active(True)
-    sta_if.config(pm=0)
+    sta_if.config(pm=0) # 0 for maximum performance, 1 for power saving (default), 2 for minimum power
     # If already connected to the desired SSID, return immediately.
     if sta_if.isconnected():
         current_ssid = None
@@ -540,6 +513,106 @@ end_ms = None
 
 _mqtt_client_ref = {"client": None, "submit_topic": "", "gamepad_id": ""}
 
+# Binary MQTT protocol constants (compact)
+CTRL = {
+    'PHASE': 0x01,
+    'SUBMIT_REQUEST': 0x02,
+    'IDENTIFY_DISPLAY': 0x03,
+    'FINAL_STATS': 0x04,
+    'FW_UPDATE': 0x05,
+}
+MSG = {
+    'RESULT': 0x10,
+    'TELEMETRY': 0x20,
+    'TELEMETRY_STATUS': 0x21,
+    'SUBMIT': 0x30,
+    'CHOICE': 0x31,
+}
+
+_LETTER_TO_INDEX = {"A":0, "B":1, "C":2, "D":3}
+
+def _encode_telemetry(rssi, battery):
+    b = bytearray()
+    b.append(MSG['TELEMETRY'])
+    flags = 0
+    if rssi is not None:
+        flags |= 1
+    if battery is not None:
+        flags |= 2
+    b.append(flags)
+    if rssi is not None:
+        # signed int8
+        try:
+            b.extend(struct.pack('<b', int(rssi)))
+        except Exception:
+            b.extend(struct.pack('b', int(rssi)))
+    if battery is not None:
+        b.append(int(battery) & 0xff)
+    return bytes(b)
+
+def _encode_status(status_type, status, detail=""):
+    # subtype mapping currently only 'fw-update-status' -> 1
+    subtype = 1 if status_type == 'fw-update-status' else 0
+    status_map = {'start':1, 'ok':2, 'error':3}
+    sc = status_map.get(status, 0)
+    detail_bytes = (str(detail or '')).encode('utf8')
+    if len(detail_bytes) > 255:
+        detail_bytes = detail_bytes[:255]
+    b = bytearray()
+    b.append(MSG['TELEMETRY_STATUS'])
+    b.append(subtype)
+    b.append(sc)
+    b.append(len(detail_bytes))
+    b.extend(detail_bytes)
+    return bytes(b)
+
+def _encode_submit(selected, timing, answer_type):
+    b = bytearray()
+    b.append(MSG['SUBMIT'])
+    flags = 0
+    if answer_type == 'ordering':
+        if selected:
+            flags |= 2
+    else:
+        if selected:
+            flags |= 1
+    has_timing = False
+    if timing and any(t is not None for t in (timing.get('startMs'), timing.get('choiceMs'), timing.get('endMs'))):
+        flags |= 4
+        has_timing = True
+    b.append(flags)
+
+    if flags & 1:
+        # mask
+        mask = 0
+        for ch in selected:
+            idx = _LETTER_TO_INDEX.get(ch)
+            if idx is not None:
+                mask |= (1 << idx)
+        b.append(mask & 0xff)
+
+    if flags & 2:
+        n = min(4, len(selected))
+        b.append(n & 0xff)
+        for ch in selected[:n]:
+            idx = _LETTER_TO_INDEX.get(ch)
+            b.append((idx if idx is not None else 0) & 0xff)
+
+    if has_timing:
+        # pack as uint32LE, use 0xFFFFFFFF for null
+        for key in ('startMs','choiceMs','endMs'):
+            v = timing.get(key) if timing else None
+            if v is None:
+                vint = 0xFFFFFFFF
+            else:
+                try:
+                    vint = int(v) & 0xFFFFFFFF
+                except Exception:
+                    vint = 0xFFFFFFFF
+            b.extend(struct.pack('<I', vint))
+
+    return bytes(b)
+
 
 def display_identify_number():
     if identify_number is None:
@@ -573,17 +646,14 @@ def publish_submit(mqtt_client, submit_topic, gamepad_id):
             end_ms = int(time.time() * 1000)
         except Exception:
             end_ms = None
-
-    payload = {
-        "selection": selected,
-        "timing": {
-            "startMs": start_ms if (start_ms is not None) else None,
-            "choiceMs": choice_ms if (choice_ms is not None) else None,
-            "endMs": end_ms if (end_ms is not None) else None,
-        },
+    timing = {
+        "startMs": start_ms if (start_ms is not None) else None,
+        "choiceMs": choice_ms if (choice_ms is not None) else None,
+        "endMs": end_ms if (end_ms is not None) else None,
     }
     try:
-        mqtt_client.publish(submit_topic.encode(), json.dumps(payload).encode(), qos=1)
+        data = _encode_submit(selected, timing, current_answer_type)
+        mqtt_client.publish(submit_topic.encode(), data, qos=1)
     except Exception:
         # best-effort: ignore publish failures
         pass
@@ -594,27 +664,12 @@ def publish_telemetry_status(status_type, status, detail=""):
     gamepad_id = _mqtt_client_ref.get("gamepad_id", "")
     if c is None or not gamepad_id:
         return
-
     topic = "gamepad/{}/telemetry".format(gamepad_id)
-    payload = {
-        "type": status_type,
-        "status": status,
-        "detail": str(detail or "")[:120],
-    }
     try:
-        c.publish(topic.encode(), json.dumps(payload).encode(), qos=0)
+        data = _encode_status(status_type, status, detail)
+        c.publish(topic.encode(), data, qos=0)
     except Exception:
         pass
-
-
-def _sha256_hex(data):
-    if hashlib is None or ubinascii is None:
-        return None
-    if isinstance(data, str):
-        data = data.encode()
-    h = hashlib.sha256()
-    h.update(data)
-    return ubinascii.hexlify(h.digest()).decode().lower()
 
 
 def perform_ota_update(url, expected_sha256=None):
@@ -916,17 +971,100 @@ def handle_result_message(data):
 
 def on_mqtt_message(topic, msg):
     topic_str = topic.decode() if isinstance(topic, bytes) else str(topic)
-    msg_str = msg.decode() if isinstance(msg, bytes) else str(msg)
+    # msg is expected as bytes (binary protocol)
+    buf = msg if isinstance(msg, (bytes, bytearray)) else (msg.encode() if isinstance(msg, str) else b'')
 
     try:
-        data = json.loads(msg_str)
+        if topic_str.endswith('/control'):
+            if not buf or len(buf) < 1:
+                return
+            t0 = buf[0]
+            # phase
+            if t0 == CTRL['PHASE']:
+                if len(buf) < 3:
+                    return
+                phase_code = buf[1]
+                flags = buf[2]
+                off = 3
+                phase_map = {0: 'idle', 1: 'welcome', 2: 'question', 3: 'voting', 4: 'collecting', 5: 'review', 6: 'reveal', 7: 'stats', 8: 'finished'}
+                payload = {'type': 'phase', 'phase': phase_map.get(phase_code, 'idle')}
+                if flags & 1:
+                    if off < len(buf):
+                        at = buf[off]; off += 1
+                        at_map = {0: 'single', 1: 'multiple', 2: 'ordering'}
+                        qid_len = 0
+                        if off < len(buf):
+                            qid_len = buf[off]; off += 1
+                        qid = None
+                        if qid_len and off + qid_len <= len(buf):
+                            try:
+                                qid = buf[off:off+qid_len].decode('utf8')
+                            except Exception:
+                                qid = None
+                            off += qid_len
+                        payload['question'] = {'id': qid, 'answerType': at_map.get(at, 'single')}
+                if flags & 2:
+                    if off < len(buf):
+                        payload['identifyDisplayEnabled'] = bool(buf[off]); off += 1
+                if flags & 4:
+                    if off + 2 <= len(buf):
+                        payload['identifyNumber'] = struct.unpack_from('<H', buf, off)[0]; off += 2
+                handle_control_message(payload)
+                return
+
+            if t0 == CTRL['SUBMIT_REQUEST']:
+                handle_control_message({'type': 'submit-request'})
+                return
+
+            if t0 == CTRL['IDENTIFY_DISPLAY']:
+                enabled = False
+                ident = None
+                if len(buf) >= 2:
+                    enabled = bool(buf[1])
+                if len(buf) >= 4:
+                    ident = struct.unpack_from('<H', buf, 2)[0]
+                handle_control_message({'type': 'identify-display', 'enabled': enabled, 'identifyNumber': ident})
+                return
+
+            if t0 == CTRL['FINAL_STATS']:
+                handle_control_message({'type': 'final-stats'})
+                return
+
+            if t0 == CTRL['FW_UPDATE']:
+                off = 1
+                if off < len(buf):
+                    ulen = buf[off]; off += 1
+                    url = ''
+                    if ulen and off + ulen <= len(buf):
+                        try:
+                            url = buf[off:off+ulen].decode('utf8')
+                        except Exception:
+                            url = ''
+                        off += ulen
+                    shahex = None
+                    if off + 32 <= len(buf):
+                        try:
+                            rawsha = buf[off:off+32]
+                            shahex = ubinascii.hexlify(rawsha).decode().lower()
+                        except Exception:
+                            shahex = None
+                    handle_control_message({'type': 'fw-update', 'url': url, 'sha256': shahex})
+                return
+
+            return
+
+        elif topic_str.endswith('/result'):
+            if not buf or len(buf) < 4:
+                return
+            if buf[0] == MSG['RESULT']:
+                flags = buf[1]
+                correct = bool(flags & 1)
+                total = struct.unpack_from('<H', buf, 2)[0]
+                handle_result_message({'type': 'result', 'correct': correct, 'totalPoints': total})
+                return
+            return
     except Exception:
         return
-
-    if topic_str.endswith("/control"):
-        handle_control_message(data)
-    elif topic_str.endswith("/result"):
-        handle_result_message(data)
 
 
 def connect_mqtt(gamepad_id, broker_host):
@@ -1056,14 +1194,15 @@ def main():
                 last_rssi_send_ms = now_ms
                 rssi = read_rssi_dbm(sta_if)
                 if rssi is not None:
-                    payload = {"rssiDbm": rssi}
                     try:
                         bp = get_battery_percentage()
                         if bp is not None:
-                            payload["batteryPct"] = int(bp)
+                            data = _encode_telemetry(rssi, int(bp))
+                        else:
+                            data = _encode_telemetry(rssi, None)
                     except Exception:
-                        pass
-                    mqtt_client.publish(telemetry_topic.encode(), json.dumps(payload).encode(), qos=0)
+                        data = _encode_telemetry(rssi, None)
+                    mqtt_client.publish(telemetry_topic.encode(), data, qos=0)
 
             # Button edge detection
             for idx, label in enumerate(BUTTON_LABELS):

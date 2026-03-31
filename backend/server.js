@@ -43,6 +43,170 @@ const AUDIT_LOG_PATH = path.join(__dirname, "runtime", "quiz-audit.log");
 
 const answerLabels = ["A", "B", "C", "D"];
 
+// Binary MQTT protocol (compact, no JSON)
+const CTRL = {
+  PHASE: 0x01,
+  SUBMIT_REQUEST: 0x02,
+  IDENTIFY_DISPLAY: 0x03,
+  FINAL_STATS: 0x04,
+  FW_UPDATE: 0x05,
+};
+
+const MSG = {
+  RESULT: 0x10,
+  TELEMETRY: 0x20,
+  TELEMETRY_STATUS: 0x21,
+  SUBMIT: 0x30,
+  CHOICE: 0x31,
+};
+
+function encodeControlPayload(payload, gp) {
+  if (!payload || typeof payload !== 'object') return Buffer.alloc(0);
+  const t = String(payload.type || '');
+  if (t === 'phase') {
+    const phaseMap = { idle:0, welcome:1, question:2, voting:3, collecting:4, review:5, reveal:6, stats:7, finished:8 };
+    const phaseCode = phaseMap[String(payload.phase || 'idle')] || 0;
+    let flags = 0;
+    let qbuf = Buffer.alloc(0);
+    if (payload.question && typeof payload.question === 'object') {
+      flags |= 1; // question present
+      const atMap = { single:0, multiple:1, ordering:2 };
+      const at = atMap[String(payload.question.answerType || 'single')] || 0;
+      const qid = String(payload.question.id || '') || '';
+      const idBuf = Buffer.from(qid, 'utf8');
+      qbuf = Buffer.concat([Buffer.from([at]), Buffer.from([idBuf.length]), idBuf]);
+    }
+
+    let identBuf = Buffer.alloc(0);
+    if (payload.identifyDisplayEnabled !== undefined) {
+      flags |= 2;
+      identBuf = Buffer.concat([identBuf, Buffer.from([payload.identifyDisplayEnabled ? 1 : 0])]);
+    }
+    const idn = (payload.identifyNumber !== undefined && payload.identifyNumber !== null) ? Number(payload.identifyNumber) : (gp && Number(gp.gamepadNumber) ? Number(gp.gamepadNumber) : null);
+    if (idn !== null && idn !== undefined) {
+      flags |= 4;
+      const nb = Buffer.alloc(2);
+      nb.writeUInt16LE(Number(idn) & 0xffff, 0);
+      identBuf = Buffer.concat([identBuf, nb]);
+    }
+
+    const head = Buffer.from([CTRL.PHASE, phaseCode, flags]);
+    return Buffer.concat([head, qbuf, identBuf]);
+  }
+
+  if (t === 'submit-request') {
+    return Buffer.from([CTRL.SUBMIT_REQUEST]);
+  }
+
+  if (t === 'identify-display') {
+    const enabled = Boolean(payload.enabled);
+    const gpNumber = (payload.identifyNumber !== undefined && payload.identifyNumber !== null) ? Number(payload.identifyNumber) : (gp && Number(gp.gamepadNumber) ? Number(gp.gamepadNumber) : null);
+    const head = Buffer.from([CTRL.IDENTIFY_DISPLAY, enabled ? 1 : 0]);
+    if (gpNumber !== null && gpNumber !== undefined) {
+      const nb = Buffer.alloc(2);
+      nb.writeUInt16LE(Number(gpNumber) & 0xffff, 0);
+      return Buffer.concat([head, nb]);
+    }
+    return head;
+  }
+
+  if (t === 'final-stats' || t === 'finalstats') {
+    return Buffer.from([CTRL.FINAL_STATS]);
+  }
+
+  if (t === 'fw-update') {
+    const url = String(payload.url || '');
+    const urlBuf = Buffer.from(url, 'utf8');
+    const parts = [Buffer.from([CTRL.FW_UPDATE, urlBuf.length & 0xff]), urlBuf];
+    if (payload.sha256 && typeof payload.sha256 === 'string' && payload.sha256.length === 64) {
+      try {
+        const raw = Buffer.from(payload.sha256, 'hex');
+        if (raw.length === 32) parts.push(raw);
+      } catch (e) {}
+    }
+    return Buffer.concat(parts);
+  }
+
+  return Buffer.from([]);
+}
+
+function encodeResultPayload(payload) {
+  // payload: { type: 'result', correct: bool, totalPoints: number }
+  const flags = (payload && payload.correct) ? 1 : 0;
+  const pts = Number(payload && payload.totalPoints ? payload.totalPoints : 0) & 0xffff;
+  const b = Buffer.alloc(1 + 1 + 2);
+  b.writeUInt8(MSG.RESULT, 0);
+  b.writeUInt8(flags, 1);
+  b.writeUInt16LE(pts, 2);
+  return b;
+}
+
+function decodeTelemetryBuffer(buf) {
+  if (!buf || buf.length < 2) return {};
+  const t0 = buf[0];
+  if (t0 === MSG.TELEMETRY && buf.length >= 2) {
+    let off = 1;
+    const flags = buf[off++];
+    let rssi = null;
+    let battery = null;
+    if (flags & 1) {
+      if (off < buf.length) { rssi = buf.readInt8(off); off += 1; }
+    }
+    if (flags & 2) {
+      if (off < buf.length) { battery = buf.readUInt8(off); off += 1; }
+    }
+    return { rssiDbm: rssi, batteryPct: battery };
+  }
+  if (t0 === MSG.TELEMETRY_STATUS && buf.length >= 4) {
+    const subtype = buf[1];
+    const statusCode = buf[2];
+    const len = buf[3] || 0;
+    const detail = (len > 0 && 4 + len <= buf.length) ? buf.slice(4, 4 + len).toString('utf8') : '';
+    return { _status: { subtype, statusCode, detail } };
+  }
+  return {};
+}
+
+function decodeSubmitBuffer(buf) {
+  if (!buf || buf.length < 2) return null;
+  const t0 = buf[0];
+  if (t0 !== MSG.SUBMIT) {
+    return null;
+  }
+  let off = 1;
+  const flags = buf[off++];
+  const letters = ['A','B','C','D'];
+  let selection = [];
+  if (flags & 1) {
+    if (off < buf.length) {
+      const mask = buf.readUInt8(off++);
+      for (let i = 0; i < 4; i++) if (mask & (1 << i)) selection.push(letters[i]);
+    }
+  }
+  if (flags & 2) {
+    if (off < buf.length) {
+      const n = buf.readUInt8(off++);
+      for (let i = 0; i < n && off < buf.length; i++) {
+        const code = buf.readUInt8(off++);
+        if (typeof code === 'number' && code >= 0 && code < letters.length) selection.push(letters[code]);
+      }
+    }
+  }
+
+  let timing = null;
+  if (flags & 4) {
+    if (off + 12 <= buf.length) {
+      const start = buf.readUInt32LE(off); off += 4;
+      const choice = buf.readUInt32LE(off); off += 4;
+      const end = buf.readUInt32LE(off); off += 4;
+      const conv = (v) => (v === 0xFFFFFFFF ? null : v);
+      timing = { startMs: conv(start), choiceMs: conv(choice), endMs: conv(end) };
+    }
+  }
+
+  return { selection, timing };
+}
+
 const broker = createAedesInstance();
 if (broker && typeof broker.listen === "function") {
   try {
@@ -389,23 +553,26 @@ function compactControlPayloadForGamepad(payload) {
 
 function publishToGamepad(gamepadId, topicKind, payload, opts = {}) {
   const retain = Boolean(opts && opts.retain);
-  let outgoingPayload = payload;
-  if (topicKind === "control") {
-    outgoingPayload = compactControlPayloadForGamepad(payload);
-    if (outgoingPayload && typeof outgoingPayload === "object") {
-      const type = String(outgoingPayload.type || "");
-      const gp = gamepads.get(gamepadId);
-      const gpNumber = gp && Number.isInteger(Number(gp.gamepadNumber)) ? Number(gp.gamepadNumber) : null;
-      if (type === "identify-display") {
-        outgoingPayload.identifyNumber = gpNumber;
-      }
+  const gp = gamepads.get(gamepadId);
+  let buf = null;
+  try {
+    if (topicKind === 'control') {
+      buf = encodeControlPayload(payload, gp);
+    } else if (topicKind === 'result') {
+      buf = encodeResultPayload(payload);
+    } else {
+      // fallback for any other topics (shouldn't be used by gamepads)
+      buf = Buffer.from(JSON.stringify(payload));
     }
+  } catch (e) {
+    buf = Buffer.from([]);
   }
+
   const topic = `gamepad/${gamepadId}/${topicKind}`;
   broker.publish(
     {
       topic,
-      payload: JSON.stringify(outgoingPayload),
+      payload: buf,
       qos: 1,
       retain,
     },
@@ -1164,22 +1331,30 @@ broker.on("publish", (packet, client) => {
   if (!isGamepadClientId(gamepadId)) return;
 
   let payload = {};
-  try {
-    payload = JSON.parse(packet.payload ? packet.payload.toString("utf8") : "{}");
-  } catch (err) {
+  const raw = packet.payload || Buffer.alloc(0);
+  const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(String(raw || ""), 'utf8');
+
+  if (kind === "telemetry") {
+    const t = decodeTelemetryBuffer(buf);
+    // telemetry status messages (non-numeric) may return _status
+    if (t && t._status) {
+      // store/log if needed, ignore by default
+    } else {
+      handleTelemetryMessage(gamepadId, t);
+    }
     return;
   }
 
-  if (kind === "telemetry") {
-    handleTelemetryMessage(gamepadId, payload);
-    return;
-  }
   if (kind === "choice") {
-    handleChoiceMessage(gamepadId, payload);
+    const obj = decodeSubmitBuffer(buf);
+    if (obj) handleChoiceMessage(gamepadId, obj);
     return;
   }
+
   if (kind === "submit") {
-    handleSubmitMessage(gamepadId, payload);
+    const obj = decodeSubmitBuffer(buf);
+    if (obj) handleSubmitMessage(gamepadId, obj);
+    return;
   }
 });
 
