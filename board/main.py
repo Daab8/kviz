@@ -475,11 +475,9 @@ def _wifi_attempt_failed(status_code):
     return status_code in failure_codes
 
 
-
-
-
 def connect_wifi(sta_if, on_wait=None):
     sta_if.active(True)
+    sta_if.config(pm=0)
     # If already connected to the desired SSID, return immediately.
     if sta_if.isconnected():
         current_ssid = None
