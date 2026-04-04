@@ -75,12 +75,14 @@ MQTT_PORT = 1883
 GAMEPAD_ID_PREFIX = "g"
 
 WIFI_CONNECT_TIMEOUT_S = 5
+WIFI_CONNECT_POLL_MS = 20
 BUTTON_DEBOUNCE_MS = 200
 RSSI_SEND_EVERY_MS = 5000
 MQTT_KEEPALIVE_S = 10
 OTA_TEMP_FILE = "main.new.py"
 OTA_TARGET_FILE = "main.py"
 OTA_BACKUP_FILE = "main.bak.py"
+DISCONNECTED_FEEDBACK_REFRESH_MS = 200
 
 # ---- Power safety net ----
 # If startup follows an unstable reset (brownout-like behavior), sleep to protect battery.
@@ -114,6 +116,7 @@ PATTERN_D = 0x5E
 PATTERN_E = 0x79
 PATTERN_F = 0x71
 PATTERN_DASH = 0x40
+PATTERN_r = 0x50
 
 DIGITS = {
     "0": 0x3F,
@@ -135,6 +138,14 @@ LETTER_PATTERN = {
     "D": PATTERN_D,
     "E": PATTERN_E,
     "F": PATTERN_F,
+}
+
+BUTTON_TEST_DISPLAY_PATTERN = {
+    "A": PATTERN_A,
+    "B": PATTERN_B,
+    "C": PATTERN_C,
+    "D": PATTERN_D,
+    "R": PATTERN_r,
 }
 
 
@@ -299,6 +310,30 @@ def display_number(num):
         else:
             out[idx] = DIGITS.get(ch, 0x00)
         idx -= 1
+
+    for pos in range(4):
+        tm_write_at(pos, out[pos])
+
+
+def display_prefixed_number(prefix_pattern, num):
+    out = [0x00, 0x00, 0x00, 0x00]
+    if isinstance(prefix_pattern, int):
+        out[0] = prefix_pattern & 0x7F
+
+    if num is not None:
+        s = str(int(num))
+        if len(s) > 3:
+            s = s[-3:]
+
+        idx = 3
+        for ch in reversed(s):
+            if idx < 1:
+                break
+            if ch == "-":
+                out[idx] = PATTERN_DASH
+            else:
+                out[idx] = DIGITS.get(ch, 0x00)
+            idx -= 1
 
     for pos in range(4):
         tm_write_at(pos, out[pos])
@@ -482,7 +517,7 @@ def connect_wifi(sta_if, on_wait=None):
             break
         if time.time() - start > WIFI_CONNECT_TIMEOUT_S:
             break
-        time.sleep(0.2)
+        time.sleep_ms(WIFI_CONNECT_POLL_MS)
 
     if sta_if.isconnected():
         return profile
@@ -505,6 +540,8 @@ current_answer_type = "single"
 selected = []
 identify_display_enabled = False
 identify_number = None
+disconnected_test_button = None
+_disconnected_feedback_last_ms = None
 
 # Local monotonic timing (ms) recorded with time.ticks_ms()
 start_ms = None
@@ -969,6 +1006,41 @@ def handle_result_message(data):
         display_number(total_points)
 
 
+def poll_button_presses(prev_values, last_sent_ms_by_button, on_press, now_ms=None):
+    if now_ms is None:
+        now_ms = time.ticks_ms()
+
+    for idx, label in enumerate(BUTTON_LABELS):
+        v = buttons[idx].value()
+        was = prev_values[idx]
+        prev_values[idx] = v
+
+        if not (was == 1 and v == 0):
+            continue
+
+        last_sent = last_sent_ms_by_button[label]
+        if time.ticks_diff(now_ms, last_sent) < BUTTON_DEBOUNCE_MS:
+            continue
+
+        last_sent_ms_by_button[label] = now_ms
+        on_press(label)
+
+
+def handle_disconnected_button_press(button_label):
+    global disconnected_test_button, _disconnected_feedback_last_ms
+
+    disconnected_test_button = button_label if button_label in BUTTON_TEST_DISPLAY_PATTERN else None
+    _disconnected_feedback_last_ms = None
+    show_disconnected_feedback(force=True)
+
+
+def clear_disconnected_button_press():
+    global disconnected_test_button, _disconnected_feedback_last_ms
+
+    disconnected_test_button = None
+    _disconnected_feedback_last_ms = None
+
+
 def on_mqtt_message(topic, msg):
     topic_str = topic.decode() if isinstance(topic, bytes) else str(topic)
     # msg is expected as bytes (binary protocol)
@@ -1094,7 +1166,19 @@ def show_disconnected_led():
     set_led_rgb(255, 0, 0)
 
 
-def show_disconnected_feedback():
+def show_disconnected_feedback(force=False):
+    global _disconnected_feedback_last_ms
+
+    now_ms = None
+    try:
+        now_ms = time.ticks_ms()
+    except Exception:
+        now_ms = None
+
+    if not force and now_ms is not None and _disconnected_feedback_last_ms is not None:
+        if time.ticks_diff(now_ms, _disconnected_feedback_last_ms) < DISCONNECTED_FEEDBACK_REFRESH_MS:
+            return
+
     show_disconnected_led()
     # While disconnected, show battery percentage on the display.
     try:
@@ -1102,10 +1186,14 @@ def show_disconnected_feedback():
     except Exception:
         p = None
 
-    if p is None:
+    prefix_pattern = BUTTON_TEST_DISPLAY_PATTERN.get(disconnected_test_button, 0x00)
+    if p is None and prefix_pattern == 0x00:
         display_clear()
     else:
-        display_number(p)
+        display_prefixed_number(prefix_pattern, p)
+
+    if now_ms is not None:
+        _disconnected_feedback_last_ms = now_ms
 
 
 def main():
@@ -1132,17 +1220,22 @@ def main():
     # Fixed short backoff (ms) between reconnect attempts — keep trying quickly.
     reconnect_backoff_ms = 100
 
+    def on_disconnected_wait():
+        show_disconnected_feedback()
+        poll_button_presses(prev_values, last_sent_ms_by_button, handle_disconnected_button_press)
+
     while True:
         now_ms = time.ticks_ms()
 
         if mqtt_client is None:
             show_disconnected_feedback()
+            poll_button_presses(prev_values, last_sent_ms_by_button, handle_disconnected_button_press, now_ms)
             if time.ticks_diff(now_ms, disconnect_backoff_until_ms) < 0:
                 time.sleep_ms(20)
                 continue
 
         try:
-            connect_wifi(sta_if, on_wait=show_disconnected_feedback)
+            connect_wifi(sta_if, on_wait=on_disconnected_wait)
             # Derive broker from the connected interface's subnet (.1).
             target_mqtt_broker = None
             try:
@@ -1183,6 +1276,7 @@ def main():
                         pass
                 mqtt_client = connect_mqtt(gamepad_id, target_mqtt_broker)
                 active_mqtt_broker = target_mqtt_broker
+                clear_disconnected_button_press()
                 # Reset backoff after a successful connection
                 reconnect_backoff_ms = 200
                 if current_phase != "voting":
@@ -1204,23 +1298,7 @@ def main():
                         data = _encode_telemetry(rssi, None)
                     mqtt_client.publish(telemetry_topic.encode(), data, qos=0)
 
-            # Button edge detection
-            for idx, label in enumerate(BUTTON_LABELS):
-                v = buttons[idx].value()
-                was = prev_values[idx]
-                prev_values[idx] = v
-
-                if not (was == 1 and v == 0):
-                    continue
-
-                last_sent = last_sent_ms_by_button[label]
-                if time.ticks_diff(now_ms, last_sent) < BUTTON_DEBOUNCE_MS:
-                    continue
-
-                last_sent_ms_by_button[label] = now_ms
-
-                # R only clears vote while in voting; A-D follow current answer mode.
-                apply_button_input(label)
+            poll_button_presses(prev_values, last_sent_ms_by_button, apply_button_input, now_ms)
 
             time.sleep_ms(20)
 

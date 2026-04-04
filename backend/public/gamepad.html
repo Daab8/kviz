@@ -86,6 +86,8 @@
           SUBMIT: 0x30,
           CHOICE: 0x31,
         };
+        const DISCONNECTED_BUTTON_DISPLAY = { A: 'A', B: 'b', C: 'C', D: 'd', R: 'r' };
+        const DISCONNECTED_BATTERY_PCT = 100;
         const ANSWER_TYPES = ['single', 'multiple', 'ordering'];
         const LETTER_TO_INDEX = { A: 0, B: 1, C: 2, D: 3 };
         const textEncoder = new TextEncoder();
@@ -102,6 +104,7 @@
         let reconnectTimer = null;
         let identifyDisplayEnabled = false;
         let identifyNumber = null;
+        let disconnectedTestButton = null;
         let startMs = null;
         let choiceMs = null;
         let endMs = null;
@@ -122,6 +125,14 @@
 
         function setLedColor(r,g,b) { try { led.style.background = `rgb(${r},${g},${b})`; } catch (e) {} }
         function setDisplay(text) { try { sevenSeg.textContent = String(text).padStart(2,' '); } catch (e) {} }
+
+        function renderDisconnectedDisplay() {
+          const prefix = disconnectedTestButton && DISCONNECTED_BUTTON_DISPLAY[disconnectedTestButton]
+            ? DISCONNECTED_BUTTON_DISPLAY[disconnectedTestButton]
+            : '';
+          const batteryText = String(DISCONNECTED_BATTERY_PCT).slice(-3).padStart(3, ' ');
+          setDisplay(prefix ? `${prefix}${batteryText}` : batteryText);
+        }
 
         function nowMs() {
           try {
@@ -371,6 +382,7 @@
           } catch (e) { scheduleReconnect(); return; }
 
           client.on('connect', () => {
+            disconnectedTestButton = null;
             try { client.subscribe(`gamepad/${gpId}/control`, { qos: 1 }); } catch (e) {}
             try { client.subscribe(`gamepad/${gpId}/result`, { qos: 1 }); } catch (e) {}
             try { publishTelemetry(); } catch (e) {}
@@ -399,7 +411,7 @@
           client.on('close', () => {
             clearTelemetryTimer();
             setLedColor(255,0,0);
-            setDisplay(100);
+            renderDisconnectedDisplay();
             scheduleReconnect();
           });
         }
@@ -562,6 +574,14 @@
         document.getElementById('btnR').addEventListener('click', () => { applyButton('R'); });
 
         function applyButton(button) {
+          if (!client || !client.connected) {
+            if (Object.prototype.hasOwnProperty.call(DISCONNECTED_BUTTON_DISPLAY, button)) {
+              disconnectedTestButton = button;
+              renderDisconnectedDisplay();
+            }
+            return;
+          }
+
           if (currentPhase !== 'voting') return;
           const prevSel = Array.isArray(selection) ? selection.slice() : [];
 
@@ -601,7 +621,7 @@
         }
 
         setLedColor(255,0,0);
-        setDisplay(100);
+        renderDisconnectedDisplay();
         try { connect(); } catch (e) { scheduleReconnect(); }
       </script>
     </div>

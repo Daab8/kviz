@@ -307,6 +307,21 @@
         /* keep in normal flow; badge is positioned relative to .panel */
         position: static;
       }
+      /* Reveal-specific styling: make question title smaller and gray,
+         and make the reveal description larger and black for readability. */
+      .question-wrap.reveal h1 {
+        font-size: clamp(1.15rem, 2.2vw, 1.35rem);
+        color: #6b7280;
+        font-weight: 600;
+        text-align: center;
+      }
+      .question-wrap.reveal .question-description-reveal {
+        font-size: clamp(1.6rem, 3vw, 2.25rem);
+        color: #000000;
+        line-height: 1.4;
+        text-align: center;
+        font-weight: 600;
+      }
 
       .question-points {
         /* absolute relative to .panel so it aligns with the panel top edge */
@@ -707,7 +722,7 @@
 
         // Wrap the question so we can absolutely-position the points badge.
         return `
-          <div class="question-wrap">
+          <div class="question-wrap${reveal ? ' reveal' : ''}">
             <div class="question-points">${esc(pointsText)}</div>
             <h1>${esc(q.text)}</h1>
             ${reveal ? "" : `<div class="question-type">${esc(typeLabel)}</div>`}
