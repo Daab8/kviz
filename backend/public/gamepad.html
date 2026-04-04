@@ -72,9 +72,24 @@
       <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
       <script>
         const WS_PATH = '/mqtt';
-        const statusEl = document.getElementById('status');
-        const gpIdEl = document.getElementById('gpId');
-        const logEl = document.getElementById('log');
+        const CTRL = {
+          PHASE: 0x01,
+          SUBMIT_REQUEST: 0x02,
+          IDENTIFY_DISPLAY: 0x03,
+          FINAL_STATS: 0x04,
+          FW_UPDATE: 0x05,
+        };
+        const MSG = {
+          RESULT: 0x10,
+          TELEMETRY: 0x20,
+          TELEMETRY_STATUS: 0x21,
+          SUBMIT: 0x30,
+          CHOICE: 0x31,
+        };
+        const ANSWER_TYPES = ['single', 'multiple', 'ordering'];
+        const LETTER_TO_INDEX = { A: 0, B: 1, C: 2, D: 3 };
+        const textEncoder = new TextEncoder();
+        const textDecoder = new TextDecoder();
         const sevenSeg = document.getElementById('sevenSeg');
         const led = document.getElementById('led');
 
@@ -87,7 +102,6 @@
         let reconnectTimer = null;
         let identifyDisplayEnabled = false;
         let identifyNumber = null;
-        // local monotonic timings (ms, performance.now())
         let startMs = null;
         let choiceMs = null;
         let endMs = null;
@@ -106,48 +120,284 @@
           } catch (e) { return randId(); }
         }
 
-        function setStatus(s) { try { statusEl.textContent = s; } catch (e) {} }
         function setLedColor(r,g,b) { try { led.style.background = `rgb(${r},${g},${b})`; } catch (e) {} }
         function setDisplay(text) { try { sevenSeg.textContent = String(text).padStart(2,' '); } catch (e) {} }
 
+        function nowMs() {
+          try {
+            if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+              return Math.floor(performance.now()) >>> 0;
+            }
+          } catch (e) {}
+          return Date.now() >>> 0;
+        }
+
+        function clearTelemetryTimer() {
+          if (telemetryTimer) {
+            clearInterval(telemetryTimer);
+            telemetryTimer = null;
+          }
+        }
+
+        function normalizeBytes(payload) {
+          if (payload instanceof Uint8Array) return payload;
+          if (payload instanceof ArrayBuffer) return new Uint8Array(payload);
+          if (payload && payload.buffer instanceof ArrayBuffer) {
+            return new Uint8Array(payload.buffer, payload.byteOffset || 0, payload.byteLength || payload.length || 0);
+          }
+          if (Array.isArray(payload)) return Uint8Array.from(payload);
+          if (typeof payload === 'string') return textEncoder.encode(payload);
+          return new Uint8Array(0);
+        }
+
+        function readUInt16LE(bytes, offset) {
+          return bytes[offset] | (bytes[offset + 1] << 8);
+        }
+
+        function pushUInt32LE(bytes, value) {
+          bytes.push(value & 0xff);
+          bytes.push((value >>> 8) & 0xff);
+          bytes.push((value >>> 16) & 0xff);
+          bytes.push((value >>> 24) & 0xff);
+        }
+
+        function bytesToHex(bytes) {
+          return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
+        }
+
+        function encodeTelemetry(rssi, batteryPct) {
+          const bytes = [MSG.TELEMETRY];
+          let flags = 0;
+          if (Number.isFinite(rssi)) flags |= 1;
+          if (Number.isFinite(batteryPct)) flags |= 2;
+          bytes.push(flags);
+
+          if (flags & 1) {
+            const signed = Math.max(-128, Math.min(127, Math.round(rssi)));
+            bytes.push((signed + 256) & 0xff);
+          }
+          if (flags & 2) {
+            bytes.push(Math.max(0, Math.min(100, Math.round(batteryPct))) & 0xff);
+          }
+
+          return Uint8Array.from(bytes);
+        }
+
+        function encodeTelemetryStatus(statusType, status, detail = '') {
+          const subtype = statusType === 'fw-update-status' ? 1 : 0;
+          const statusMap = { start: 1, ok: 2, error: 3 };
+          const detailBytes = Array.from(textEncoder.encode(String(detail || '')).slice(0, 255));
+          return Uint8Array.from([
+            MSG.TELEMETRY_STATUS,
+            subtype,
+            statusMap[status] || 0,
+            detailBytes.length,
+            ...detailBytes,
+          ]);
+        }
+
+        function encodeSubmitPayload(selectedLetters, timing, answerType) {
+          const cleanSelection = Array.isArray(selectedLetters)
+            ? selectedLetters.filter((letter) => Object.prototype.hasOwnProperty.call(LETTER_TO_INDEX, letter))
+            : [];
+
+          let flags = 0;
+          if (answerType === 'ordering') {
+            if (cleanSelection.length > 0) flags |= 2;
+          } else if (cleanSelection.length > 0) {
+            flags |= 1;
+          }
+
+          const hasTiming = Boolean(
+            timing && ['startMs', 'choiceMs', 'endMs'].some((key) => timing[key] !== null && timing[key] !== undefined)
+          );
+          if (hasTiming) flags |= 4;
+
+          const bytes = [MSG.SUBMIT, flags];
+
+          if (flags & 1) {
+            let mask = 0;
+            for (const letter of cleanSelection) {
+              mask |= 1 << LETTER_TO_INDEX[letter];
+            }
+            bytes.push(mask & 0xff);
+          }
+
+          if (flags & 2) {
+            const ordered = cleanSelection.slice(0, 4);
+            bytes.push(ordered.length & 0xff);
+            for (const letter of ordered) {
+              bytes.push(LETTER_TO_INDEX[letter] & 0xff);
+            }
+          }
+
+          if (flags & 4) {
+            for (const key of ['startMs', 'choiceMs', 'endMs']) {
+              const rawValue = timing ? timing[key] : null;
+              const encoded = Number.isFinite(Number(rawValue))
+                ? (Math.floor(Number(rawValue)) >>> 0)
+                : 0xFFFFFFFF;
+              pushUInt32LE(bytes, encoded);
+            }
+          }
+
+          return Uint8Array.from(bytes);
+        }
+
+        function decodeControlPayload(message) {
+          const bytes = normalizeBytes(message);
+          if (bytes.length < 1) return null;
+
+          const type = bytes[0];
+          if (type === CTRL.PHASE) {
+            if (bytes.length < 3) return null;
+
+            const phaseMap = {
+              0: 'idle',
+              1: 'welcome',
+              2: 'question',
+              3: 'voting',
+              4: 'collecting',
+              5: 'review',
+              6: 'reveal',
+              7: 'stats',
+              8: 'finished',
+            };
+
+            const payload = {
+              type: 'phase',
+              phase: phaseMap[bytes[1]] || 'idle',
+            };
+
+            const flags = bytes[2];
+            let offset = 3;
+
+            if (flags & 1) {
+              if (offset < bytes.length) {
+                const answerType = ANSWER_TYPES[bytes[offset++]] || 'single';
+                let questionId = null;
+                let questionIdLength = 0;
+                if (offset < bytes.length) {
+                  questionIdLength = bytes[offset++];
+                }
+                if (questionIdLength > 0 && offset + questionIdLength <= bytes.length) {
+                  questionId = textDecoder.decode(bytes.slice(offset, offset + questionIdLength));
+                  offset += questionIdLength;
+                }
+                payload.question = { id: questionId, answerType };
+              }
+            }
+
+            if ((flags & 2) && offset < bytes.length) {
+              payload.identifyDisplayEnabled = Boolean(bytes[offset++]);
+            }
+
+            if ((flags & 4) && offset + 2 <= bytes.length) {
+              payload.identifyNumber = readUInt16LE(bytes, offset);
+            }
+
+            return payload;
+          }
+
+          if (type === CTRL.SUBMIT_REQUEST) {
+            return { type: 'submit-request' };
+          }
+
+          if (type === CTRL.IDENTIFY_DISPLAY) {
+            return {
+              type: 'identify-display',
+              enabled: bytes.length >= 2 ? Boolean(bytes[1]) : false,
+              identifyNumber: bytes.length >= 4 ? readUInt16LE(bytes, 2) : null,
+            };
+          }
+
+          if (type === CTRL.FINAL_STATS) {
+            return { type: 'final-stats' };
+          }
+
+          if (type === CTRL.FW_UPDATE) {
+            let offset = 1;
+            const urlLength = offset < bytes.length ? bytes[offset++] : 0;
+            let url = '';
+            if (urlLength > 0 && offset + urlLength <= bytes.length) {
+              url = textDecoder.decode(bytes.slice(offset, offset + urlLength));
+              offset += urlLength;
+            }
+            return {
+              type: 'fw-update',
+              url,
+              sha256: offset + 32 <= bytes.length ? bytesToHex(bytes.slice(offset, offset + 32)) : null,
+            };
+          }
+
+          return null;
+        }
+
+        function decodeResultPayload(message) {
+          const bytes = normalizeBytes(message);
+          if (bytes.length < 4 || bytes[0] !== MSG.RESULT) return null;
+          return {
+            type: 'result',
+            correct: Boolean(bytes[1] & 1),
+            totalPoints: readUInt16LE(bytes, 2),
+          };
+        }
+
+        function publishBinary(topic, payload, options) {
+          if (!client || !client.connected) return false;
+          try {
+            client.publish(topic, payload, options);
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+
         function connect() {
           if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-          if (client) try { client.end(true); } catch (e) {}
+          clearTelemetryTimer();
+          if (client) {
+            try {
+              client.removeAllListeners();
+              client.end(true);
+            } catch (e) {}
+            client = null;
+          }
 
           gpId = getOrCreateId();
-          setStatus('connecting…');
           const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + WS_PATH;
           try {
             client = mqtt.connect(url, { clientId: gpId, clean: true, reconnectPeriod: 0 });
-          } catch (e) { setStatus('connect-failed'); scheduleReconnect(); return; }
+          } catch (e) { scheduleReconnect(); return; }
 
           client.on('connect', () => {
-            setStatus('connected');
-            try { gpIdEl.textContent = gpId; } catch(e) {}
             try { client.subscribe(`gamepad/${gpId}/control`, { qos: 1 }); } catch (e) {}
             try { client.subscribe(`gamepad/${gpId}/result`, { qos: 1 }); } catch (e) {}
             try { publishTelemetry(); } catch (e) {}
+            clearTelemetryTimer();
             telemetryTimer = setInterval(publishTelemetry, 5000);
-            // Mirror device: ensure LED off when connected and not voting
             if (currentPhase !== 'voting') setLedColor(0,0,0);
           });
 
           client.on('message', (topic, msg) => {
             try {
-              const payload = JSON.parse(msg.toString());
-              const parts = topic.split('/');
+              const parts = String(topic || '').split('/');
               const kind = parts[2];
-              if (kind === 'control') handleControl(payload);
-              if (kind === 'result') handleResult(payload);
+              if (kind === 'control') {
+                const payload = decodeControlPayload(msg);
+                if (payload) handleControl(payload);
+              }
+              if (kind === 'result') {
+                const payload = decodeResultPayload(msg);
+                if (payload) handleResult(payload);
+              }
             } catch (e) {}
           });
 
-          client.on('error', (err) => { setStatus('error'); });
+          client.on('error', () => {});
 
           client.on('close', () => {
-            setStatus('disconnected');
-            if (telemetryTimer) { clearInterval(telemetryTimer); telemetryTimer = null; }
-            // Mirror device: show stable red LED and battery when disconnected
+            clearTelemetryTimer();
             setLedColor(255,0,0);
             setDisplay(100);
             scheduleReconnect();
@@ -162,60 +412,61 @@
         function publishTelemetry() {
           if (!client || !gpId || !client.connected) return;
           const rssi = -40 - Math.floor(Math.random() * 30);
-          const battery = 100; // virtual device always reports 100%
-          try { client.publish(`gamepad/${gpId}/telemetry`, JSON.stringify({ rssiDbm: rssi, batteryPct: battery }), { qos:0 }); } catch (e) {}
+          publishBinary(`gamepad/${gpId}/telemetry`, encodeTelemetry(rssi, 100), { qos: 0 });
         }
 
-        function appendLog(txt) { try { logEl.textContent = (logEl.textContent + '\n' + txt).slice(-8000); logEl.scrollTop = logEl.scrollHeight; } catch(e) {} }
-
-        function publishChoice(button) {
-          if (!client || !gpId || !client.connected) { appendLog('publishChoice blocked: not connected'); return; }
-          const payload = { button, selection };
-          try { client.publish(`gamepad/${gpId}/choice`, JSON.stringify(payload), { qos:1 }); appendLog('OUT ▶ choice ' + JSON.stringify(payload)); } catch (e) { appendLog('OUT ERROR ' + e.message); }
+        function publishTelemetryStatus(statusType, status, detail) {
+          if (!client || !gpId || !client.connected) return;
+          publishBinary(`gamepad/${gpId}/telemetry`, encodeTelemetryStatus(statusType, status, detail), { qos: 0 });
         }
 
         function publishSubmit() {
-          if (!client || !gpId || !client.connected) { appendLog('publishSubmit blocked: not connected'); return; }
+          if (!client || !gpId || !client.connected) return;
           try {
-            try { endMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); } catch (e) { endMs = Date.now(); }
-            const payload = {
-              selection,
-              timing: {
-                startMs: Number.isFinite(Number(startMs)) ? Number(startMs) : null,
-                choiceMs: Number.isFinite(Number(choiceMs)) ? Number(choiceMs) : null,
-                endMs: Number.isFinite(Number(endMs)) ? Number(endMs) : null,
-              },
-            };
-            client.publish(`gamepad/${gpId}/submit`, JSON.stringify(payload), { qos:1 });
-            appendLog('OUT ▶ submit ' + JSON.stringify(payload));
-          } catch (e) { appendLog('OUT ERROR ' + e.message); }
+            endMs = nowMs();
+            publishBinary(
+              `gamepad/${gpId}/submit`,
+              encodeSubmitPayload(
+                selection,
+                {
+                  startMs: Number.isFinite(Number(startMs)) ? Number(startMs) : null,
+                  choiceMs: Number.isFinite(Number(choiceMs)) ? Number(choiceMs) : null,
+                  endMs: Number.isFinite(Number(endMs)) ? Number(endMs) : null,
+                },
+                currentQuestion && currentQuestion.answerType ? currentQuestion.answerType : 'single'
+              ),
+              { qos: 1 }
+            );
+          } catch (e) {}
         }
 
         function handleControl(payload) {
           const type = (payload && payload.type) ? String(payload.type).toLowerCase() : '';
+          if (type === 'fw-update') {
+            publishTelemetryStatus('fw-update-status', 'error', 'unsupported-browser');
+            return;
+          }
+
           if (type === 'phase') {
             const phase = String(payload.phase || 'idle');
             currentPhase = phase;
 
-            // optional identify fields may come in the phase payload
             if ('identifyDisplayEnabled' in payload) identifyDisplayEnabled = Boolean(payload.identifyDisplayEnabled);
             if ('identifyNumber' in payload) {
               const n = Number(payload.identifyNumber);
               identifyNumber = Number.isFinite(n) && n > 0 ? n : null;
             }
 
-            if (payload.question && payload.question.id) {
+            if (payload.question && typeof payload.question === 'object') {
               currentQuestion = payload.question;
             } else {
               currentQuestion = null;
             }
 
-            // Mirror device behavior for display and LED per phase
             if (phase === 'voting') {
               selection = [];
-              renderSelectionDisplay(); // will show blank/--
-              // start local timer for this voting round
-              try { startMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); } catch (e) { startMs = Date.now(); }
+              renderSelectionDisplay();
+              startMs = nowMs();
               choiceMs = null;
               endMs = null;
               setLedColor(0,0,255);
@@ -249,15 +500,12 @@
           }
 
           if (type === 'submit-request') {
-            // server requests current selection -> publish submit (device behavior)
             publishSubmit();
-            // mirror device: turn LED off after submit
             setLedColor(0,0,0);
             return;
           }
 
           if (type === 'final-stats') {
-            // Final stats: turn LED off but keep display unchanged
             setLedColor(0,0,0);
             return;
           }
@@ -269,7 +517,6 @@
               identifyNumber = Number.isFinite(n) && n > 0 ? n : null;
             }
 
-            // Only update visible display when NOT in voting (device behaviour)
             if (currentPhase !== 'voting') {
               if (identifyDisplayEnabled) {
                 if (identifyNumber != null) setDisplay(Number(identifyNumber)); else setDisplay('--');
@@ -315,9 +562,7 @@
         document.getElementById('btnR').addEventListener('click', () => { applyButton('R'); });
 
         function applyButton(button) {
-          // Device ignores button presses outside voting
           if (currentPhase !== 'voting') return;
-          // capture previous selection to detect real changes
           const prevSel = Array.isArray(selection) ? selection.slice() : [];
 
           if (button === 'R') {
@@ -335,30 +580,28 @@
             if (hasVote()) return;
             selection = [button];
           } else if (type === 'multiple') {
-            // additive-only: pressing a choice selects it and it remains until cleared with R
             if (!selection.includes(button)) {
               selection = [...selection, button].sort();
             }
           } else {
-            // ordering
             if (selection.includes(button)) return;
             if (selection.length >= 4) return;
             selection = [...selection, button];
           }
 
-          // only record choice time when real selection change occurred
           try {
             const prevStr = prevSel.join('|');
             const newStr = (selection || []).join('|');
             if (prevStr !== newStr && selection.length > 0) {
-              try { choiceMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); } catch (e) { choiceMs = Date.now(); }
+              choiceMs = nowMs();
             }
           } catch (e) {}
 
           renderSelectionDisplay();
         }
 
-        // start automatically
+        setLedColor(255,0,0);
+        setDisplay(100);
         try { connect(); } catch (e) { scheduleReconnect(); }
       </script>
     </div>

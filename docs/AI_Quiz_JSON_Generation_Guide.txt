@@ -41,11 +41,12 @@ Examples (minimal)
 
 Key generation rules (compact)
 - Mix topics: interleave categories so players don't see many same-topic questions in a row.
+- Mix question types: ensure each quiz includes a balanced mix of `single`, `multiple`, and `ordering` questions; do not generate only single-answer items.
 - IDs & labels: use single uppercase letters `A`..`D` for answer ids; unique per question.
 - Avoid leakage: do not include explicit years, ordinals, or unique tokens in answer texts that reveal the solution — move such metadata to `description`.
 - Plausible distractors: keep distractors same category/length/register as the correct answer.
 - Counts & formatting: exactly 4 answers per question; `single` → exactly 1 `correct:true`; `multiple` → 2..4 correct; `ordering` → use `ordering` array of all A-D.
-- Points & difficulty: always `points: 1`; aim for at least high-school level difficulty.
+ - Points & difficulty: always `points: 1`; avoid very easy questions — prefer moderate-to-hard (at least high-school level) difficulty.
 
 Images (short)
 - Prefer embedding as `imageDataUrl` (data:<mime>;base64,...) for reliable display. Maker UI limits uploads to ~512 KB.
@@ -62,10 +63,12 @@ Consistency checks (apply before export)
 - No duplicate answer texts; no answers repeating the full question.
 
 Prompt template (short)
-- "Generate N Slovak questions for TOPIC. Output JSON with `categories`, `questions`, `quizzes` following the above schema. Ensure 4 answers per question, correct flags, `ordering` for ordering-type, and `points:1`. Avoid hints or dates in answers."
+ - "Generate N Slovak questions for TOPIC. Output a single valid JSON file with `categories`, `questions`, `quizzes` following the above schema. Ensure a balanced mix of `single`, `multiple`, and `ordering` question types (do not generate only single-answer questions). Ensure 4 answers per question, correct flags, `ordering` for ordering-type, and `points:1`. Avoid very easy questions, hints or dates in answers."
 
 Checklist (quick)
-- IDs unique; answers A..D; points=1; counts/answerType rules met; no hint leakage; parseable JSON.
+ - IDs unique; answers A..D; points=1; counts/answerType rules met; no hint leakage.
+ - Valid JSON: output must be a single, parseable JSON file that follows the schema.
+ - Difficulty: avoid very easy questions; prefer moderate-to-hard difficulty.
 
 Slovak-language requirements
 - All `text`, `description`, and `answers` must be in Slovak for imports intended for this app. Keep phrasing natural and idiomatic.
